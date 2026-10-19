@@ -1,0 +1,1 @@
+<template><div class="flex min-h-dvh flex-col"><a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[200] focus:rounded-lg focus:bg-accent focus:px-4 focus:py-2 focus:text-bg">Aller au contenu</a><SiteHeader /><main id="main" class="flex-1"><slot /></main><SiteFooter /></div></template>

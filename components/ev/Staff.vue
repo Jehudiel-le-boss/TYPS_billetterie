@@ -1,0 +1,13 @@
+<script setup lang="ts">
+const props = defineProps<{ ev: any }>(); const toast = useToast()
+const { data, refresh } = await useAsyncData(`staff-${props.ev.id}`, () => api<any[]>(`/api/manage/events/${props.ev.id}/staff`), { server: false })
+const f = reactive({ email: '', canScan: true, canSell: false, gates: '' })
+async function add() { try { await api(`/api/manage/events/${props.ev.id}/staff`, { method: 'POST', body: { email: f.email, canScan: f.canScan, canSell: f.canSell, gates: f.gates.split(',').map((s) => s.trim()).filter(Boolean) } }); toast.ok('Agent affecté'); f.email = ''; refresh() } catch (e) { toast.err(errMsg(e)) } }
+async function revoke(s: any) { if (!confirm(`Révoquer l’accès de ${s.name || s.email} ?`)) return; try { await api(`/api/manage/events/${props.ev.id}/staff/${s.id}`, { method: 'DELETE' }); toast.ok('Accès révoqué immédiatement'); refresh() } catch (e) { toast.err(errMsg(e)) } }
+</script>
+<template>
+  <div class="grid gap-6 xl:grid-cols-[380px_1fr]">
+    <form class="card space-y-3 p-5" @submit.prevent="add"><h2 class="text-lg font-bold">Affecter un agent</h2><label class="block"><span class="label">E-mail du compte TYPS</span><input v-model="f.email" type="email" required class="input"></label><label class="flex min-h-[44px] items-center gap-3"><input v-model="f.canScan" type="checkbox" class="h-5 w-5 accent-[rgb(var(--c-a))]">Peut scanner les billets</label><label class="flex min-h-[44px] items-center gap-3"><input v-model="f.canSell" type="checkbox" class="h-5 w-5 accent-[rgb(var(--c-a))]">Peut vendre au guichet</label><label class="block"><span class="label">Portes (séparées par des virgules)</span><input v-model="f.gates" class="input" placeholder="Porte 1, VIP"></label><button class="btn btn-primary w-full">Affecter</button><p class="hint">L’agent doit d’abord créer un compte. Il ne voit que cet événement.</p></form>
+    <div class="card overflow-x-auto"><table class="w-full min-w-[460px]"><thead><tr><th class="th">Agent</th><th class="th">Droits</th><th class="th" /></tr></thead><tbody class="divide-y divide-line"><tr v-for="s in data" :key="s.id"><td class="td">{{ s.name || '—' }}<span class="block text-xs text-muted">{{ s.email }}</span></td><td class="td text-sm">{{ [s.canScan && 'Scanner', s.canSell && 'Vendre'].filter(Boolean).join(' · ') }}<span v-if="s.gates.length" class="block text-xs text-muted">{{ s.gates.join(', ') }}</span></td><td class="td text-right"><button class="btn btn-danger !min-h-[36px] px-3" @click="revoke(s)">Révoquer</button></td></tr><tr v-if="!data?.length"><td colspan="3" class="td text-center text-muted">Aucun agent affecté.</td></tr></tbody></table></div>
+  </div>
+</template>

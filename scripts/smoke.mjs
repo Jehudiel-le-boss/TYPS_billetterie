@@ -1,0 +1,97 @@
+// Test de fumée HTTP contre une instance en marche : `BASE=http://localhost:3100 node scripts/smoke.mjs`
+const BASE = process.env.BASE ?? 'http://localhost:3100'
+let pass = 0, fail = 0
+const jar = (c = {}) => ({ c, set(res) { for (const s of res.headers.getSetCookie?.() ?? []) { const [kv] = s.split(';'); const [k, v] = kv.split('='); if (v) this.c[k] = v; else delete this.c[k] } }, h() { return Object.entries(this.c).map(([k, v]) => `${k}=${v}`).join('; ') } })
+async function req(j, method, path, body, extra = {}) {
+  const res = await fetch(BASE + path, { method, redirect: 'manual', headers: { ...(body ? { 'content-type': 'application/json' } : {}), cookie: j.h(), origin: BASE, ...extra }, body: body ? JSON.stringify(body) : undefined })
+  j.set(res); const ct = res.headers.get('content-type') ?? ''
+  const data = ct.includes('json') ? await res.json().catch(() => null) : ct.includes('text') || ct.includes('xml') ? await res.text() : Buffer.from(await res.arrayBuffer())
+  return { status: res.status, data, ct }
+}
+const ok = (name, cond, info = '') => { if (cond) { pass++; console.log('  ✓', name) } else { fail++; console.log('  ✗', name, info) } }
+const A = jar(), B = jar(), anon = jar()
+console.log('Pages publiques')
+let r = await req(anon, 'GET', '/'); ok('accueil SSR 200', r.status === 200 && String(r.data).includes('Ton contrôle'))
+r = await req(anon, 'GET', '/events'); ok('liste événements 200', r.status === 200)
+r = await req(anon, 'GET', '/api/events'); ok('API événements publics (démo exclue du sitemap)', r.status === 200 && Array.isArray(r.data.items))
+const demo = r.data.items.find((e) => e.slug === 'lagune-live-demo'); ok('événement démo listé', !!demo)
+r = await req(anon, 'GET', '/events/lagune-live-demo'); ok('page événement SSR + JSON-LD', r.status === 200 && String(r.data).includes('application/ld+json') && String(r.data).includes('Lagune Live'))
+r = await req(anon, 'GET', '/sitemap.xml'); ok('sitemap', r.status === 200 && String(r.data).includes('<urlset'))
+r = await req(anon, 'GET', '/robots.txt'); ok('robots.txt', String(r.data).includes('Disallow: /app/'))
+r = await req(anon, 'GET', '/api/events/inconnu'); ok('événement inconnu → 404', r.status === 404)
+console.log('Authentification')
+r = await req(anon, 'GET', '/api/auth/me'); ok('anonyme : user null', r.data.user === null)
+r = await req(A, 'POST', '/api/auth/login', { email: 'demo@typs.invalid', password: 'mauvais-mot-de-passe' }); ok('mauvais mot de passe → 401', r.status === 401)
+r = await req(A, 'POST', '/api/auth/login', { email: 'demo@typs.invalid', password: 'DemoTyps2026!' }); ok('connexion', r.status === 200)
+r = await req(A, 'GET', '/api/auth/me'); ok('session cookie HTTP-only', r.data.user?.email === 'demo@typs.invalid' && r.data.orgs.length === 1)
+const org = r.data.orgs[0]
+r = await req(A, 'POST', '/api/auth/login', { email: 'demo@typs.invalid', password: 'x' }, { origin: 'https://evil.example' }); ok('CSRF : origine étrangère refusée', r.status === 403)
+r = await req(B, 'POST', '/api/auth/register', { email: `intrus${Date.now()}@t.io`, password: 'MotDePasse-Solide-1', fullName: 'Intrus Test' }); ok('inscription', r.status === 200)
+console.log('Organisateur : événement, billets, publication')
+r = await req(A, 'POST', '/api/manage/events', { organizationId: org.id, title: 'Soirée Smoke Test', capacity: 50, startsAt: new Date(Date.now() + 7 * 864e5).toISOString(), venueName: 'Salle test', city: 'Cotonou', currency: 'XOF' }); ok('création événement', r.status === 200, JSON.stringify(r.data))
+const evId = r.data.id, evSlug = r.data.slug
+r = await req(A, 'POST', `/api/manage/events/${evId}/status`, { action: 'publish' }); ok('publication sans catégorie refusée', r.status === 422)
+r = await req(A, 'POST', `/api/manage/events/${evId}/categories`, { name: 'Standard', kind: 'standard', price: 5000, quota: 5 }); ok('ajout catégorie', r.status === 200)
+const catId = r.data.id
+r = await req(A, 'POST', `/api/manage/events/${evId}/status`, { action: 'publish' }); ok('publication', r.status === 200)
+console.log('Isolation entre organisations')
+r = await req(B, 'GET', `/api/manage/events/${evId}`); ok('autre compte : 404 (pas de fuite)', r.status === 404)
+r = await req(B, 'POST', `/api/manage/events/${evId}/categories`, { name: 'x', price: 1, quota: 1 }); ok('autre compte ne peut pas modifier', r.status === 404)
+r = await req(B, 'POST', '/api/scan', { eventId: evId, code: 'TYPS1.x', gate: 'P1' }); ok('autre compte ne peut pas scanner', r.status === 404)
+r = await req(B, 'GET', `/api/manage/events?orgId=${org.id}`); ok('autre compte ne liste pas les événements', r.status === 404)
+r = await req(B, 'GET', '/api/admin/overview'); ok('API admin interdite', r.status === 403)
+r = await req(anon, 'GET', '/api/admin/overview'); ok('API admin anonyme 401', r.status === 401)
+console.log('Quota : achats concurrents (5 places, 12 requêtes)')
+const orgDemo = demo
+const buyers = await Promise.all(Array.from({ length: 12 }, (_, i) => req(jar(), 'POST', '/api/checkout', { eventId: evId, items: [{ categoryId: catId, quantity: 1 }], buyer: { name: `Acheteur ${i}`, email: `a${i}@t.io` }, acceptTerms: true })))
+const created = buyers.filter((b) => b.status === 200), refused = buyers.filter((b) => b.status === 409)
+ok('événement non-démo sans FedaPay : échec propre (503), places libérées', buyers.every((b) => b.status === 503 || b.status === 502 || b.status === 409), buyers.map((b) => b.status).join(','))
+r = await req(anon, 'GET', `/api/events/${evSlug}`); ok('aucune place perdue après échec FedaPay', r.data.categories[0].available === 5, JSON.stringify(r.data.categories[0]))
+console.log(`  (${created.length} acceptées, ${refused.length} conflits, ${orgDemo ? "démo ok" : ""})`)
+console.log('Parcours démo : achat → billets → PDF → scan')
+r = await req(anon, 'GET', '/api/events/lagune-live-demo'); const dcat = r.data.categories.find((c) => c.price > 0)
+const buyerJar = jar()
+r = await req(buyerJar, 'POST', '/api/checkout', { eventId: r.data.id, items: [{ categoryId: dcat.id, quantity: 2 }], buyer: { name: 'Client Smoke', email: 'client@smoke.io' }, acceptTerms: true }); ok('commande démo', r.status === 200 && r.data.redirect.includes('demo-pay'), JSON.stringify(r.data))
+const { orderId, k } = r.data
+r = await req(anon, 'GET', `/api/orders/${orderId}`); ok('commande sans jeton → 404', r.status === 404)
+r = await req(anon, 'GET', `/api/orders/${orderId}?k=${k}`); ok('commande en attente, aucun billet', r.data.status === 'pending' && r.data.tickets.length === 0)
+r = await req(anon, 'POST', `/api/orders/${orderId}/demo-pay?k=${k}`); ok('paiement démo', r.status === 200 && r.data.outcome === 'paid', JSON.stringify(r.data))
+r = await req(anon, 'POST', `/api/orders/${orderId}/demo-pay?k=${k}`); ok('paiement rejoué : idempotent', r.data.outcome === 'already_paid')
+r = await req(anon, 'GET', `/api/orders/${orderId}?k=${k}`); ok('2 billets émis', r.data.status === 'paid' && r.data.tickets.length === 2)
+const t1 = r.data.tickets[0], t2 = r.data.tickets[1]
+r = await req(anon, 'GET', `/api/tickets/${t1.id}/pdf?k=${k}`); ok('PDF du billet', r.status === 200 && r.ct.includes('pdf') && r.data.subarray(0, 4).toString() === '%PDF')
+r = await req(anon, 'GET', `/api/tickets/${t1.id}/pdf`); ok('PDF sans jeton refusé', r.status === 404)
+r = await req(anon, 'GET', `/api/orders/${orderId}/tickets.zip?k=${k}`); ok('ZIP de la commande', r.status === 200 && r.data.subarray(0, 2).toString() === 'PK')
+r = await req(anon, 'GET', `/api/orders/${orderId}/tickets.pdf?k=${k}`); ok('planche A4', r.status === 200 && r.data.subarray(0, 4).toString() === '%PDF')
+r = await req(anon, 'GET', `/api/tickets/${t1.id}/qr.png?k=${k}&size=1200`); ok('QR haute résolution', r.status === 200 && r.ct.includes('png'))
+r = await req(anon, 'GET', `/api/tickets/${t1.id}/render?k=${k}`); const c1 = r.data.code; ok('rendu billet numérique + code signé', !!c1 && c1.startsWith('TYPS1.'))
+r = await req(anon, 'GET', `/api/tickets/${t2.id}/render?k=${k}`); const c2 = r.data.code; ok('codes QR distincts dans la même commande', c1 !== c2)
+const evDemoId = (await req(anon, 'GET', '/api/events/lagune-live-demo')).data.id
+r = await req(A, 'POST', '/api/scan', { eventId: evDemoId, code: c1, gate: 'Porte 1' }); ok('scan : accepté (vert)', r.data.result === 'accepted', JSON.stringify(r.data))
+r = await req(A, 'POST', '/api/scan', { eventId: evDemoId, code: c1, gate: 'Porte 2' }); ok('re-scan : déjà utilisé (orange)', r.data.result === 'already_used')
+r = await req(A, 'POST', '/api/scan', { eventId: evDemoId, code: c1.slice(0, -2) + 'AA', gate: 'P' }); ok('QR falsifié : invalide (rouge)', r.data.result === 'invalid')
+r = await req(A, 'POST', '/api/scan', { eventId: evId, code: c2, gate: 'P' }); ok('billet d’un autre événement : refusé', r.data.result === 'wrong_event')
+const doubles = await Promise.all(Array.from({ length: 6 }, () => req(A, 'POST', '/api/scan', { eventId: evDemoId, code: c2, gate: 'P' }))); ok('6 scans simultanés : 1 seul accepté', doubles.filter((d) => d.data.result === 'accepted').length === 1, doubles.map((d) => d.data.result).join(','))
+r = await req(A, 'POST', '/api/scan', { eventId: evDemoId, code: t1.ref, gate: 'P' }); ok('saisie manuelle de la référence', r.data.result === 'already_used')
+console.log('Vente au guichet, statistiques, exports')
+r = await req(A, 'POST', `/api/manage/events/${evId}/door-sale`, { eventId: evId, items: [{ categoryId: catId, quantity: 2 }], paymentMethod: 'cash', amountReceived: 10000, holderName: 'Guichet', confirmCollected: true }); ok('vente physique', r.status === 200 && r.data.tickets.length === 2, JSON.stringify(r.data))
+const door = r.data
+r = await req(A, 'POST', `/api/manage/events/${evId}/door-sale`, { eventId: evId, items: [{ categoryId: catId, quantity: 1 }], paymentMethod: 'cash', amountReceived: 1000, holderName: 'x', confirmCollected: true }); ok('montant insuffisant refusé', r.status === 409 || r.status === 422)
+r = await req(A, 'POST', `/api/manage/events/${evId}/door-sale`, { eventId: evId, items: [{ categoryId: catId, quantity: 1 }], paymentMethod: 'cash', amountReceived: 5000, holderName: 'x', confirmCollected: false }); ok('encaissement non confirmé refusé', r.status === 422)
+r = await req(A, 'GET', `/api/tickets/${door.tickets[0].id}/pdf?k=${door.k}`); ok('billet guichet imprimable', r.status === 200)
+r = await req(A, 'GET', `/api/manage/events/${evId}/stats`); ok('stats réelles', r.status === 200 && r.data.byChannel.some((c) => c.channel === 'physical') && r.data.soldTotal === 2, JSON.stringify(r.data.byChannel))
+r = await req(A, 'GET', `/api/manage/events/${evId}/attendees?format=csv`); ok('export CSV participants', r.status === 200 && String(r.data).includes('Référence'))
+r = await req(A, 'GET', `/api/manage/events/${evId}/orders?format=csv`); ok('export CSV ventes', r.status === 200)
+console.log('Studio de billets, invités')
+r = await req(A, 'POST', '/api/templates', { organizationId: org.id, name: 'Test studio' }); ok('création modèle', r.status === 200); const tid = r.data.id
+r = await req(A, 'GET', `/api/templates/${tid}`); const lay = r.data.layout
+r = await req(A, 'PUT', `/api/templates/${tid}`, { layout: { ...lay, width: 99999 } }); ok('autosave (layout borné côté serveur)', r.status === 200)
+r = await req(A, 'GET', `/api/templates/${tid}`); ok('largeur plafonnée à 2400', r.data.layout.width === 2400)
+r = await req(A, 'POST', `/api/templates/${tid}/publish`); ok('publication de la version', r.status === 200 && r.data.version === 1, JSON.stringify(r.data))
+r = await req(A, 'GET', `/api/templates/${tid}/preview-pdf`); ok('PDF d’essai', r.status === 200 && r.data.subarray(0, 4).toString() === '%PDF')
+r = await req(B, 'GET', `/api/templates/${tid}`); ok('modèle d’une autre organisation : 404', r.status === 404)
+r = await req(A, 'POST', `/api/manage/events/${evId}/guests`, { csv: 'nom,email\nAïcha Dossou,aicha@x.io\nX,bad', commit: false }); ok('import CSV : aperçu des erreurs', r.data.errors.length === 1 && r.data.rows.length === 1)
+r = await req(A, 'POST', `/api/manage/events/${evId}/guests`, { csv: 'nom,email\nAïcha Dossou,aicha@x.io', categoryId: catId, listName: 'VIP', commit: true }); ok('invitation émise (places prélevées)', r.status === 200 && r.data.issued === 1, JSON.stringify(r.data))
+r = await req(anon, 'POST', '/api/webhooks/fedapay', { name: 'transaction.approved' }, { 'x-fedapay-signature': 't=1,v1=deadbeef' }); ok('webhook non signé → rejeté', r.status === 400 || r.status === 503)
+r = await req(anon, 'POST', '/api/internal/cron'); ok('cron sans secret → 401', r.status === 401)
+console.log(`\n${pass} réussis, ${fail} échecs`); process.exit(fail ? 1 : 0)

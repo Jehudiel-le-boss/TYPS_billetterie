@@ -1,0 +1,5 @@
+<script setup lang="ts">
+definePageMeta({ layout: 'dashboard', middleware: 'admin' }); useSeoMeta({ title: 'Journal d’audit', robots: 'noindex' })
+const { data } = await useAsyncData('adm-audit', () => api<any[]>('/api/admin/audit'), { server: false })
+</script>
+<template><div class="space-y-6"><h1 class="text-[clamp(1.8rem,4vw,2.6rem)] font-black">Journal d’audit</h1><div class="card overflow-x-auto"><table class="w-full min-w-[640px]"><thead><tr><th class="th">Date</th><th class="th">Action</th><th class="th">Objet</th><th class="th">Acteur</th><th class="th">Détails</th></tr></thead><tbody class="divide-y divide-line"><tr v-for="a in data" :key="a.id"><td class="td whitespace-nowrap text-muted">{{ fdate(a.createdAt, { dateStyle: 'short', timeStyle: 'medium' }) }}</td><td class="td font-mono text-xs">{{ a.action }}</td><td class="td text-xs text-muted">{{ a.entityType }} {{ a.entityId?.slice(0, 8) }}</td><td class="td font-mono text-xs">{{ a.actorId?.slice(0, 8) ?? 'système' }}</td><td class="td max-w-xs truncate text-xs text-muted">{{ a.meta ? JSON.stringify(a.meta) : '' }}</td></tr></tbody></table></div></div></template>

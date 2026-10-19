@@ -1,0 +1,10 @@
+# PostgreSQL LOCAL pour le développement uniquement. En production la base est exclusivement Neon.
+# Une DATABASE_URL non-Neon (ici localhost) bascule automatiquement sur le pilote TCP `pg` ; une URL *.neon.tech utilise le pilote serverless Neon.
+services:
+  db:
+    image: postgres:16-alpine
+    environment: { POSTGRES_USER: typs, POSTGRES_PASSWORD: typs, POSTGRES_DB: typs }
+    ports: ['5432:5432']
+    volumes: ['typs-pg:/var/lib/postgresql/data']
+    healthcheck: { test: ['CMD-SHELL', 'pg_isready -U typs'], interval: 5s, retries: 10 }
+volumes: { typs-pg: {} }

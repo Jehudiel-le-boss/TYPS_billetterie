@@ -1,0 +1,36 @@
+# Exemple de « blueprint » Render (hébergeur Node compatible Nitro). À adapter ; non déployé par l'auteur du projet.
+services:
+  - type: web
+    name: typs
+    runtime: node
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm run db:migrate && node .output/server/index.mjs
+    healthCheckPath: /api/health
+    envVars:
+      - { key: NODE_VERSION, value: '22' }
+      - { key: DATABASE_URL, sync: false }
+      - { key: NUXT_PUBLIC_SITE_URL, sync: false }
+      - { key: SESSION_SECRET, generateValue: true }
+      - { key: QR_SECRET, generateValue: true }
+      - { key: CRON_SECRET, generateValue: true }
+      - { key: FEDAPAY_ENV, value: sandbox }
+      - { key: FEDAPAY_SECRET_KEY_SANDBOX, sync: false }
+      - { key: FEDAPAY_WEBHOOK_SECRET_SANDBOX, sync: false }
+      - { key: FEDAPAY_SECRET_KEY_LIVE, sync: false }
+      - { key: FEDAPAY_WEBHOOK_SECRET_LIVE, sync: false }
+      - { key: S3_ENDPOINT, sync: false }
+      - { key: S3_BUCKET, sync: false }
+      - { key: S3_ACCESS_KEY_ID, sync: false }
+      - { key: S3_SECRET_ACCESS_KEY, sync: false }
+      - { key: RESEND_API_KEY, sync: false }
+      - { key: MAIL_FROM, sync: false }
+  - type: cron
+    name: typs-cron
+    runtime: node
+    schedule: '*/5 * * * *'
+    buildCommand: 'true'
+    startCommand: 'curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" "$SITE_URL/api/internal/cron"'
+    envVars:
+      - { key: CRON_SECRET, sync: false }
+      - { key: SITE_URL, sync: false }

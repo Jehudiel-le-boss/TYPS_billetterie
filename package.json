@@ -1,0 +1,62 @@
+{
+  "name": "typs",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "typecheck": "nuxt typecheck",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "check": "npm run typecheck && npm run lint && npm run test && npm run build",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:seed": "tsx scripts/seed.ts",
+    "db:expire-holds": "tsx scripts/expire-holds.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1152.0",
+    "@aws-sdk/s3-request-presigner": "^3.1152.0",
+    "@lucide/vue": "^1.58.0",
+    "@neondatabase/serverless": "^1.2.0",
+    "@nuxtjs/tailwindcss": "^6.14.0",
+    "@tresjs/core": "^5.9.3",
+    "drizzle-orm": "^0.45.4",
+    "fedapay": "^1.2.5",
+    "fflate": "^0.8.3",
+    "jsqr": "^1.4.0",
+    "motion-v": "^2.8.0",
+    "nuxt": "^3.21.11",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^5.4.0",
+    "pg": "^8.23.1",
+    "qrcode": "^1.5.4",
+    "three": "^0.186.1",
+    "vue": "^3.5.0",
+    "vue-router": "^4.5.0",
+    "ws": "^8.22.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
+    "@types/pg": "^8.23.1",
+    "@types/qrcode": "^1.5.5",
+    "@types/three": "^0.186.0",
+    "@types/ws": "^8.18.1",
+    "drizzle-kit": "^0.31.11",
+    "eslint": "^9.39.0",
+    "eslint-plugin-vue": "^10.5.0",
+    "tsx": "^4.20.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.46.0",
+    "vitest": "^3.2.4",
+    "vue-eslint-parser": "^10.4.1",
+    "vue-tsc": "^3.1.0"
+  }
+}
