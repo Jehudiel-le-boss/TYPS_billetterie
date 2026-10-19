@@ -10,7 +10,9 @@ services:
     envVars:
       - { key: NODE_VERSION, value: '22' }
       - { key: DATABASE_URL, sync: false }
+      - { key: DATABASE_URL_UNPOOLED, sync: false }
       - { key: NUXT_PUBLIC_SITE_URL, sync: false }
+      - { key: NEON_AUTH_BASE_URL, sync: false }
       - { key: SESSION_SECRET, generateValue: true }
       - { key: QR_SECRET, generateValue: true }
       - { key: CRON_SECRET, generateValue: true }

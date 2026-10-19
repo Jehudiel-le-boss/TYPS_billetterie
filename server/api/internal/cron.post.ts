@@ -10,7 +10,9 @@ import { processDueJobs } from '~~/server/services/mail'
 import { releaseWaitlist } from '~~/server/services/waitlist'
 // À appeler toutes les 5 min (cron de l'hébergeur) avec l'en-tête x-cron-secret.
 export default api(async (e) => {
-  const secret = env.cronSecret(), got = getHeader(e, 'x-cron-secret') ?? ''
+  const authorization = getHeader(e, 'authorization') ?? ''
+  const bearer = authorization.startsWith('Bearer ') ? authorization.slice(7) : ''
+  const secret = env.cronSecret(), got = getHeader(e, 'x-cron-secret') ?? bearer
   if (!secret || !safeEqual(secret, got)) return fail(401, 'Non autorisé', 'unauthorized')
   const db = useDb()
   const expired = await expireHolds(db, new Date(), async (id) => (await verifyAndSettle(db, id)).state === 'paid')

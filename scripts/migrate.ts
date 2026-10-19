@@ -6,8 +6,8 @@ import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres'
 import { migrate as migratePg } from 'drizzle-orm/node-postgres/migrator'
 import pg from 'pg'
 import ws from 'ws'
-const url = process.env.DATABASE_URL
-if (!url) { console.error('DATABASE_URL manquante'); process.exit(1) }
+const url = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL
+if (!url) { console.error('DATABASE_URL_UNPOOLED ou DATABASE_URL manquante'); process.exit(1) }
 const folder = './server/db/migrations'
 if (/neon\.(tech|build)/.test(url)) {
   neonConfig.webSocketConstructor = ws

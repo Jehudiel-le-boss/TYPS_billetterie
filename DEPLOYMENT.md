@@ -14,7 +14,7 @@ Le build produit `.output/` (démarrage : `node .output/server/index.mjs`, varia
 3. Ne **jamais** lancer `db:seed` en production (refusé par le script). Pour créer le premier administrateur : s'inscrire sur le site, puis `BOOTSTRAP_ADMIN_EMAIL=vous@domaine.com DATABASE_URL=… npm run db:seed` n'est pas recommandé en production → préférer SQL : `UPDATE users SET platform_role='admin' WHERE email='vous@domaine.com';`.
 
 ## 3. Variables d'environnement (voir `.env.example`)
-Obligatoires : `DATABASE_URL`, `NUXT_PUBLIC_SITE_URL` (URL publique HTTPS), `SESSION_SECRET`, `QR_SECRET`, `CRON_SECRET` (`openssl rand -base64 48`). Laisser `APP_ENV` **vide** (= production) et `DEMO_MODE` absent/`false`. Le serveur refuse de démarrer sans secrets valides.
+Obligatoires : `DATABASE_URL` (pooler, runtime), `DATABASE_URL_UNPOOLED` (connexion directe, migrations), `NUXT_PUBLIC_SITE_URL` (URL publique HTTPS), `SESSION_SECRET`, `QR_SECRET`, `CRON_SECRET` (`openssl rand -base64 48`). Laisser `APP_ENV` **vide** (= production) et `DEMO_MODE` absent/`false`. Le serveur refuse de démarrer sans secrets valides.
 
 ## 4. Stockage des fichiers (S3-compatible)
 Créer un bucket **privé** (Cloudflare R2, AWS S3, MinIO…) et un jeton d'accès limité à ce bucket. Renseigner `S3_ENDPOINT` (R2 : `https://<account>.r2.cloudflarestorage.com`), `S3_REGION` (`auto` pour R2), `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`. Les fichiers sont servis par **URLs signées temporaires** ; aucun accès public. Sans `S3_BUCKET`, TYPS écrit sur le disque local (`.data/uploads`) : **à proscrire en production** (disque éphémère).
@@ -39,6 +39,19 @@ npm ci && npm run build
 node .output/server/index.mjs        # PORT=3000 par défaut
 ```
 Cron (toutes les 5 min) : `curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" https://VOTRE-DOMAINE/api/internal/cron` — libère les réservations expirées (après revérification FedaPay), envoie les rappels, prévient la liste d'attente.
+
+## 7 bis. Déploiement Vercel (domaine TYPS actuel)
+Le dépôt contient `vercel.json` : le build applique les migrations versionnées avec `DATABASE_URL_UNPOOLED`, puis construit Nuxt ; un cron appelle `/api/internal/cron` toutes les 5 minutes. Vercel transmet `Authorization: Bearer $CRON_SECRET`, accepté par cette route. Vérifier que le plan Vercel autorise cette fréquence.
+
+Dans **Vercel → Settings → Environment Variables**, définir au minimum `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `NUXT_PUBLIC_SITE_URL=https://typs-ashy.vercel.app`, `SESSION_SECRET`, `QR_SECRET`, `CRON_SECRET`, `FEDAPAY_ENV=sandbox`, `FEDAPAY_SECRET_KEY_SANDBOX` et `FEDAPAY_WEBHOOK_SECRET_SANDBOX`. Pour un lancement réel, ajouter aussi un bucket S3/R2 privé (`S3_BUCKET`, identifiants et région), `RESEND_API_KEY` et `MAIL_FROM`. Ne jamais copier le `.env` local dans le dépôt.
+
+La route `/api/health` expose `ready` et les contrôles manquants sans révéler de secret. En production, `ready` reste faux tant que base, secrets, HTTPS, FedaPay/webhook, S3, e-mail et Neon Auth ne sont pas configurés/intégrés. Le disque local est refusé comme stockage de fichiers en production.
+
+**Sauvegardes** : Neon fournit restauration temporelle/branches selon le plan. Vérifier la rétention active dans le tableau de bord, créer une branche avant les changements risqués et tester une restauration ; le code de l'application ne peut ni activer un plan Neon ni garantir une sauvegarde indépendante.
+
+**Authentification Neon** : le code Nuxt actuel utilise encore ses routes de session et tables `users`/`sessions` applicatives ; il n'est pas encore connecté à Managed Better Auth (Neon Auth). L'URL d'authentification fournie par les réglages Neon et la stratégie de liaison des utilisateurs doivent être définies avant de présenter Neon Auth comme fournisseur actif. Pour la production Managed Better Auth, configurer aussi domaines approuvés, SMTP, vérification d'e-mail et désactivation de l'accès localhost (voir [la checklist officielle Neon](https://neon.com/docs/auth/production-checklist)).
+
+**FedaPay webhook** : URL `https://typs-ashy.vercel.app/api/webhooks/fedapay`, vérification SSL activée, pas d'entêtes/corps personnalisés. Garder « recevoir tous les événements » ou sélectionner tous les événements `transaction.*` pour ne pas manquer les notifications de paiement. Enregistrer le secret de signature dans `FEDAPAY_WEBHOOK_SECRET_SANDBOX` côté Vercel ; il est différent des clés publique et secrète.
 
 ## 8. Contrôles post-déploiement
 - `GET /api/health` → `{"ok":true,"db":true,"production":true,"demoMode":false,"fedapay":{"mode":"live|sandbox","configured":true,"webhookSecret":true},"storage":"s3","mail":true}`.

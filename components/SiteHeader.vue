@@ -2,7 +2,7 @@
 import { Menu, X, LayoutDashboard, ScanLine } from '@lucide/vue'
 const me = useMe(); const open = ref(false); const route = useRoute()
 watch(() => route.fullPath, () => { open.value = false })
-const links = [{ to: '/events', label: 'Explorer' }, { to: '/#themes', label: 'Thèmes' }, { to: '/#scanner', label: 'Scanner' }, { to: '/#faq', label: 'FAQ' }]
+const links = [{ to: '/events', label: 'Explorer' }, { to: '/#roles', label: 'Acheter ou vendre' }, { to: '/#scanner', label: 'Scanner' }, { to: '/#faq', label: 'FAQ' }]
 </script>
 <template>
   <header class="sticky top-0 z-40 border-b border-line/60 bg-bg/70 backdrop-blur-xl">

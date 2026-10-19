@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { QrCode, ScanLine, ShieldCheck, Smartphone, Palette, Wallet, Users, BarChart3, Share2, Sparkles, Zap, Globe2 } from '@lucide/vue'
+import { QrCode, ScanLine, ShieldCheck, Smartphone, Palette, Wallet, Users, BarChart3, Share2, Sparkles, Zap, Globe2, CalendarDays } from '@lucide/vue'
 const { current } = useTheme(); const reduced = useReducedMotion()
 const use3d = ref(false); const Ticket3D = defineAsyncComponent(() => import('~/components/Ticket3D.vue'))
 onMounted(() => { try { const gl = document.createElement('canvas').getContext('webgl2') || document.createElement('canvas').getContext('webgl'); use3d.value = !!gl && !reduced.value && window.innerWidth >= 768 && (navigator.hardwareConcurrency ?? 4) >= 4 } catch { use3d.value = false } })
@@ -10,7 +10,7 @@ const benefits = [
   { icon: ShieldCheck, t: 'Billets infalsifiables', d: 'Chaque QR code est unique, signé et vérifié par le serveur. Aucune donnée personnelle n’y figure, et un billet ne rentre qu’une fois.' },
   { icon: ScanLine, t: 'Contrôle en direct', d: 'Un navigateur suffit : vert, orange ou rouge en une seconde, compteur d’entrées, plusieurs portes et mode hors ligne encadré.' }
 ]
-const steps = [{ n: '01', t: 'Crée', d: 'Titre, date, lieu, catégories de billets et quotas. Brouillon enregistré automatiquement.' }, { n: '02', t: 'Personnalise', d: 'Importe ton visuel (PNG, JPG, PDF) et place le nom, le QR, le lieu… où tu veux.' }, { n: '03', t: 'Vends et contrôle', d: 'Ventes en ligne et au guichet, puis scanner à l’entrée avec n’importe quel téléphone.' }]
+const steps = [{ n: '01', t: 'Choisis ton événement', d: 'Compare les dates, lieux et catégories de billets avant de réserver.' }, { n: '02', t: 'Paie en ligne', d: 'Le paiement est confirmé côté serveur. Le billet et son QR personnel sont ensuite disponibles.' }, { n: '03', t: 'Présente ton billet', d: 'À l’entrée, un agent autorisé scanne le QR. Un billet valide ne peut être accepté qu’une seule fois.' }]
 const features = [
   { icon: Palette, t: 'Studio de billets', d: 'Éditeur visuel : glisser-déposer, calques, grille magnétique, annuler/rétablir.' }, { icon: QrCode, t: 'QR haute résolution', d: 'Export PDF individuel, planche d’impression A4 et archive ZIP.' },
   { icon: Wallet, t: 'Ventes au guichet', d: 'Encaisse en espèces et imprime le billet sur place, sans double attribution.' }, { icon: Users, t: 'Équipe et agents', d: 'Affecte des agents à un événement, révoque leur accès en un clic.' },
@@ -18,10 +18,12 @@ const features = [
   { icon: Sparkles, t: 'Invités et listes VIP', d: 'Importe un CSV avec aperçu des erreurs, émets des invitations gratuites.' }, { icon: Globe2, t: 'Pensé pour l’Afrique francophone', d: 'FCFA/XOF, mobile money via FedaPay, interface en français.' }
 ]
 const faq = [
-  ['Combien coûte TYPS ?', 'Les commissions sont configurables par la plateforme et affichées clairement avant le paiement : tu vois toujours ce que paie l’acheteur et ce que tu perçois.'],
+  ['Combien coûte TYPS ?', 'Les éventuels frais de service et le total sont présentés avant confirmation du paiement. Les tarifs sont fixés par la plateforme et peuvent évoluer.'],
   ['Comment sont versées mes recettes ?', 'Les paiements en ligne sont encaissés via FedaPay. Les reversements aux organisateurs sont suivis dans TYPS (rapprochement) et effectués selon les modalités du compte marchand ; un mode manuel contrôlé est prévu.'],
+  ['Qui fait quoi sur la plateforme ?', 'Les acheteurs choisissent et paient leurs billets. Les organisateurs créent les événements, fixent leurs quotas et suivent les ventes. Les vendeurs et agents n’accèdent qu’aux opérations autorisées pour leur événement.'],
   ['Un billet peut-il être copié ?', 'Le QR code peut être photographié, mais le serveur n’accepte une entrée qu’une seule fois : le second scan est refusé en orange.'],
   ['Et sans internet à l’entrée ?', 'Un mode hors ligne limité existe (si tu l’actives) : les appareils vérifient un pack téléchargé puis synchronisent. Deux appareils déconnectés ne peuvent pas se voir en temps réel : les doublons sont signalés à la reconnexion.'],
+  ['Puis-je revendre mon billet sur TYPS ?', 'Le transfert nominatif d’un billet est disponible lorsque l’organisateur l’autorise. La revente avec paiement intégré et garantie anti-fraude n’est pas encore proposée : achète uniquement auprès du vendeur officiel de l’événement.'],
   ['Puis-je vendre sans internet pour les clients ?', 'Oui : la vente au guichet enregistre les paiements espèces et génère le billet immédiatement.']
 ]
 </script>
@@ -52,14 +54,18 @@ const faq = [
     <section class="container-x py-24"><Reveal><h2 class="max-w-2xl text-[clamp(1.8rem,4vw,3rem)] font-black">Tout ce qu’il faut pour une porte qui s’ouvre sans accroc</h2></Reveal>
       <div class="mt-12 grid gap-5 md:grid-cols-3"><Reveal v-for="(b, i) in benefits" :key="b.t" :delay="i * 0.1"><article class="card h-full p-6 transition hover:-translate-y-1 hover:shadow-glow"><span class="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-accent to-accent2 text-[color:var(--on-accent,#05050a)]"><component :is="b.icon" :size="24" /></span><h3 class="mt-5 text-xl font-bold">{{ b.t }}</h3><p class="mt-2 text-muted">{{ b.d }}</p></article></Reveal></div></section>
 
-    <!-- Personnalisation -->
-    <section id="themes" class="relative scroll-mt-20 py-24"><div class="absolute inset-0 -z-10 bg-gradient-to-b from-transparent via-accent2/5 to-transparent" />
-      <div class="container-x"><div class="grid items-start gap-10 lg:grid-cols-[1fr_1.1fr]"><div class="lg:sticky lg:top-24"><Reveal><span class="chip">Personnalisation en direct</span><h2 class="mt-4 text-[clamp(1.8rem,4vw,3rem)] font-black">16 thèmes, et le tien</h2><p class="mt-4 text-muted">Choisis un thème : tout le site et ce billet changent instantanément. Chaque événement garde son identité, de la page de vente au billet final.</p></Reveal>
-        <div class="mt-8"><TicketFace tilt title="Nuit Afro Vibes" name="Koffi Mensah" category="VIP" /></div></div>
-        <Reveal><ThemeGallery /></Reveal></div></div></section>
+    <!-- Parcours par rôle -->
+    <section id="roles" class="container-x scroll-mt-20 py-24"><Reveal><span class="chip">Une plateforme, des rôles clairs</span><h2 class="mt-4 max-w-3xl text-[clamp(1.8rem,4vw,3rem)] font-black">La bonne expérience, que tu achètes ou que tu organises</h2><p class="mt-4 max-w-2xl text-muted">TYPS met en relation le public et les organisateurs, puis accompagne chaque étape : vente, émission du billet et contrôle à l’entrée.</p></Reveal>
+      <div class="mt-10 grid gap-5 lg:grid-cols-3">
+        <Reveal><article class="card h-full p-6"><Wallet :size="26" class="text-accent" /><h3 class="mt-4 text-xl font-bold">Acheteur</h3><p class="mt-3 text-sm text-muted">Découvre les événements, compare les tarifs, paie en ligne et retrouve son billet PDF avec QR dans son espace ou par e-mail.</p><NuxtLink to="/events" class="btn btn-ghost mt-6">Trouver un événement</NuxtLink></article></Reveal>
+        <Reveal :delay="0.08"><article class="card h-full p-6"><CalendarDays :size="26" class="text-accent" /><h3 class="mt-4 text-xl font-bold">Organisateur</h3><p class="mt-3 text-sm text-muted">Crée sa billetterie, choisit prix et quotas, partage la page officielle, suit ventes et recettes, puis prépare ses équipes.</p><NuxtLink to="/auth/register" class="btn btn-primary mt-6">Ouvrir ma billetterie</NuxtLink></article></Reveal>
+        <Reveal :delay="0.16"><article class="card h-full p-6"><ScanLine :size="26" class="text-accent" /><h3 class="mt-4 text-xl font-bold">Vendeur ou agent</h3><p class="mt-3 text-sm text-muted">Intervient uniquement sur les événements qui lui sont attribués : vente au guichet, contrôle des billets et suivi de la porte.</p><NuxtLink to="/auth/login" class="btn btn-ghost mt-6">Accès équipe</NuxtLink></article></Reveal>
+      </div>
+      <p class="mt-6 text-sm text-muted">La personnalisation graphique des pages et billets reste disponible dans l’espace organisateur. Le transfert nominatif dépend de l’événement ; la revente avec paiement intégré n’est pas encore proposée.</p>
+    </section>
 
     <!-- Étapes -->
-    <section class="container-x py-24"><Reveal><h2 class="text-[clamp(1.8rem,4vw,3rem)] font-black">En trois étapes</h2></Reveal>
+    <section class="container-x py-24"><Reveal><h2 class="text-[clamp(1.8rem,4vw,3rem)] font-black">Du choix du billet à l’entrée</h2></Reveal>
       <ol class="mt-12 grid gap-5 md:grid-cols-3"><Reveal v-for="(s, i) in steps" :key="s.n" :delay="i * 0.1" as="li"><div class="card relative h-full overflow-hidden p-6"><span class="font-display text-7xl font-black text-line">{{ s.n }}</span><h3 class="mt-2 text-2xl font-bold">{{ s.t }}</h3><p class="mt-2 text-muted">{{ s.d }}</p></div></Reveal></ol></section>
 
     <!-- Scanner -->

@@ -6,7 +6,14 @@ import { dirname, join, normalize } from 'node:path'
 import { env } from '../utils/env'
 import { hmac, safeEqual } from '../utils/crypto'
 
-const useS3 = () => !!env.s3().bucket
+function useS3() {
+  const c = env.s3()
+  const configured = !!(c.bucket && c.accessKeyId && c.secretAccessKey)
+  const partiallyConfigured = !!(c.endpoint || c.bucket || c.accessKeyId || c.secretAccessKey)
+  if (partiallyConfigured && !configured) throw new Error('Configuration S3 incomplète : bucket et identifiants sont requis')
+  if (env.isProd() && !configured) throw new Error('Stockage S3 requis en production : le disque local est éphémère')
+  return configured
+}
 let client: S3Client | null = null
 function s3() {
   if (client) return client

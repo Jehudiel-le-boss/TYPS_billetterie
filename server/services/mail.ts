@@ -25,12 +25,18 @@ export async function scheduleReminder(db: Db, toEmail: string, payload: { event
   await db.insert(notificationJobs).values({ kind: 'event_reminder', toEmail, payload, runAt })
 }
 export async function processDueJobs(db: Db, now = new Date(), limit = 50): Promise<number> {
+  if (!env.mail().apiKey) return 0
   const { lte, and } = await import('drizzle-orm')
   const jobs = await db.select().from(notificationJobs).where(and(eq(notificationJobs.status, 'queued'), lte(notificationJobs.runAt, now))).limit(limit)
   for (const j of jobs) {
     const p = j.payload as { slug: string; title: string }
     const ok = await sendEmail(db, j.toEmail, `Rappel : ${p.title}`, mailLayout(`${p.title} approche`, 'Votre billet est prêt dans votre boîte e-mail. Pensez à le présenter à l’entrée.', { label: 'Voir l’événement', url: `${env.siteUrl()}/events/${p.slug}` }))
-    await db.update(notificationJobs).set({ status: ok || !env.mail().apiKey ? 'sent' : 'failed', attempts: j.attempts + 1 }).where(eq(notificationJobs.id, j.id))
+    const attempts = j.attempts + 1
+    await db.update(notificationJobs).set({
+      status: ok ? 'sent' : attempts >= 5 ? 'failed' : 'queued',
+      attempts,
+      runAt: ok ? j.runAt : new Date(now.getTime() + Math.min(2 ** attempts * 60_000, 3_600_000))
+    }).where(eq(notificationJobs.id, j.id))
   }
   return jobs.length
 }
