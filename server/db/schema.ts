@@ -19,7 +19,8 @@ export const paymentStatus = pgEnum('payment_status', ['initiated', 'pending', '
 export const scanResult = pgEnum('scan_result', ['accepted', 'already_used', 'invalid', 'cancelled', 'refunded', 'suspended', 'wrong_event', 'not_started'])
 
 export const users = pgTable('users', {
-  id: id(), email: text('email').notNull(), passwordHash: text('password_hash').notNull(),
+  id: id(), email: text('email').notNull(), passwordHash: text('password_hash'),
+  neonAuthUserId: text('neon_auth_user_id').unique(),
   emailVerifiedAt: ts('email_verified_at'), platformRole: platformRole('platform_role').notNull().default('user'),
   status: text('status').notNull().default('active'), createdAt: createdAt(), deletedAt: ts('deleted_at')
 }, (t) => [uniqueIndex('users_email_uq').on(sql`lower(${t.email})`)])

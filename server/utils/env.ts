@@ -10,6 +10,15 @@ function secret(name: string, devFallback: string): string {
 export const env = {
   isProd,
   databaseUrl: () => { const v = process.env.DATABASE_URL; if (!v) throw new Error('DATABASE_URL manquante (chaîne Neon)'); return v },
+  neonAuthBaseUrl: () => {
+    const value = process.env.NEON_AUTH_BASE_URL?.trim()
+    if (!value) return ''
+    let url: URL
+    try { url = new URL(value) } catch { throw new Error('NEON_AUTH_BASE_URL doit être une URL absolue') }
+    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && !isProd() && ['localhost', '127.0.0.1'].includes(url.hostname))) throw new Error('NEON_AUTH_BASE_URL doit utiliser HTTPS')
+    if (url.username || url.password || url.search || url.hash) throw new Error('NEON_AUTH_BASE_URL ne doit contenir ni identifiants, ni paramètres, ni fragment')
+    return url.toString().replace(/\/$/, '')
+  },
   sessionSecret: () => secret('SESSION_SECRET', 'dev-only-session-secret-change-me'),
   qrSecret: () => secret('QR_SECRET', 'dev-only-qr-secret-change-me-too'),
   cronSecret: () => process.env.CRON_SECRET || '',

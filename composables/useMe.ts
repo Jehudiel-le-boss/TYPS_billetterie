@@ -11,4 +11,18 @@ export function useOrg() {
   const current = computed(() => orgs.value.find((o) => o.id === cookie.value) ?? orgs.value[0] ?? null)
   return { orgs, current, select: (id: string) => { cookie.value = id } }
 }
-export async function logout() { await api('/api/auth/logout', { method: 'POST' }); useMe().value = { user: null }; await navigateTo('/') }
+export async function logout() {
+  let error: unknown
+  try { await api('/api/auth/logout', { method: 'POST' }) } catch (e) { error = e }
+  useMe().value = { user: null }
+  try {
+    const auth = await useNeonAuth()
+    const result = await auth.adapter.signOut()
+    if (result.error) throw new Error(result.error.message || 'Déconnexion Neon impossible')
+  } catch (e) {
+    const code = e && typeof e === 'object' && 'code' in e ? e.code : undefined
+    if (code !== 'neon_auth_not_configured') error ??= e
+  }
+  await navigateTo('/')
+  if (error) useToast().err(errMsg(error))
+}

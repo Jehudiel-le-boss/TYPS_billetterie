@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'auth' }); useSeoMeta({ title: 'Mot de passe oublié', robots: 'noindex' })
 const toast = useToast(); const email = ref(''); const sent = ref(false); const busy = ref(false)
-async function submit() { busy.value = true; try { await api('/api/auth/forgot', { method: 'POST', body: { email: email.value } }); sent.value = true } catch (e) { toast.err(errMsg(e)) } finally { busy.value = false } }
+async function submit() { busy.value = true; try { const auth = await useNeonAuth(); const result = await auth.adapter.requestPasswordReset({ email: email.value, redirectTo: `${window.location.origin}/auth/reset` }); if (result.error) throw new Error(result.error.message || 'Demande impossible'); sent.value = true } catch (e) { toast.err(errMsg(e)) } finally { busy.value = false } }
 </script>
 <template>
   <h1 class="text-2xl font-black">Mot de passe oublié</h1>

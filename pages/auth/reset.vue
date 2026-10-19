@@ -1,7 +1,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'auth' }); useSeoMeta({ title: 'Nouveau mot de passe', robots: 'noindex' })
 const route = useRoute(); const toast = useToast(); const password = ref(''); const busy = ref(false)
-async function submit() { busy.value = true; try { await api('/api/auth/reset', { method: 'POST', body: { token: String(route.query.token ?? ''), password: password.value } }); toast.ok('Mot de passe modifié. Connecte-toi.'); await navigateTo('/auth/login') } catch (e) { toast.err(errMsg(e)) } finally { busy.value = false } }
+async function submit() { busy.value = true; try { const token = String(route.query.token ?? ''); if (!token) throw new Error('Lien de réinitialisation manquant ou expiré'); const auth = await useNeonAuth(); const result = await auth.adapter.resetPassword({ token, newPassword: password.value }); if (result.error) throw new Error(result.error.message || 'Réinitialisation impossible'); toast.ok('Mot de passe modifié. Connecte-toi.'); await navigateTo('/auth/login') } catch (e) { toast.err(errMsg(e)) } finally { busy.value = false } }
 </script>
 <template>
   <h1 class="text-2xl font-black">Nouveau mot de passe</h1>

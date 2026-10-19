@@ -1,7 +1,7 @@
 import { and, eq, gt, isNull } from 'drizzle-orm'
 import { getCookie, setCookie, deleteCookie, getHeader, type H3Event } from 'h3'
 import { users, userProfiles, sessions } from '../db/schema'
-import { useDb } from './db'
+import { useDb, type Db } from './db'
 import { randomToken, sha256 } from './crypto'
 import { env } from './env'
 import { fail } from './errors'
@@ -11,9 +11,9 @@ const COOKIE = 'typs_session'
 const TTL_MS = 30 * 24 * 3600 * 1000
 export interface SessionUser { id: string; email: string; fullName: string; platformRole: 'user' | 'admin'; emailVerified: boolean; sessionId: string }
 
-export async function startSession(e: H3Event, userId: string) {
+export async function startSession(e: H3Event, userId: string, db: Db = useDb()) {
   const token = randomToken(32)
-  await useDb().insert(sessions).values({ userId, tokenHash: sha256(token), expiresAt: new Date(Date.now() + TTL_MS), ip: clientIp(e), userAgent: (getHeader(e, 'user-agent') ?? '').slice(0, 200) })
+  await db.insert(sessions).values({ userId, tokenHash: sha256(token), expiresAt: new Date(Date.now() + TTL_MS), ip: clientIp(e), userAgent: (getHeader(e, 'user-agent') ?? '').slice(0, 200) })
   setCookie(e, COOKIE, token, { httpOnly: true, secure: env.isProd(), sameSite: 'lax', path: '/', maxAge: TTL_MS / 1000 })
 }
 export async function endSession(e: H3Event) {

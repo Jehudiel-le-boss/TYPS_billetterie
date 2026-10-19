@@ -8,8 +8,10 @@ import { fail } from '~~/server/utils/errors'
 import { startSession } from '~~/server/utils/session'
 import { sendEmail, mailLayout } from '~~/server/services/mail'
 import { env } from '~~/server/utils/env'
+import { assertLegacyAuthDisabled } from '~~/server/services/neon-auth'
 
 export default api(async (e) => {
+  assertLegacyAuthDisabled()
   limit(e, 'register', 8, 3600_000)
   const b = await parseBody(e, registerSchema)
   const db = useDb()

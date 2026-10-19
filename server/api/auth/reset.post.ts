@@ -6,8 +6,10 @@ import { users, authTokens, sessions } from '~~/server/db/schema'
 import { hashPassword, sha256 } from '~~/server/utils/crypto'
 import { passwordSchema } from '~~/shared/validation'
 import { fail } from '~~/server/utils/errors'
+import { assertLegacyAuthDisabled } from '~~/server/services/neon-auth'
 
 export default api(async (e) => {
+  assertLegacyAuthDisabled()
   limit(e, 'reset', 10, 3600_000)
   const { token, password } = await parseBody(e, z.object({ token: z.string().min(20).max(100), password: passwordSchema }))
   const db = useDb()

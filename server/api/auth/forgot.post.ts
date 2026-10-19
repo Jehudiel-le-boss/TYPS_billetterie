@@ -7,8 +7,10 @@ import { randomToken, sha256 } from '~~/server/utils/crypto'
 import { emailSchema } from '~~/shared/validation'
 import { sendEmail, mailLayout } from '~~/server/services/mail'
 import { env } from '~~/server/utils/env'
+import { assertLegacyAuthDisabled } from '~~/server/services/neon-auth'
 
 export default api(async (e) => {
+  assertLegacyAuthDisabled()
   limit(e, 'forgot', 5, 3600_000)
   const { email } = await parseBody(e, z.object({ email: emailSchema }))
   const db = useDb()
