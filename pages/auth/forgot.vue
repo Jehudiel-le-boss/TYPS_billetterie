@@ -5,7 +5,7 @@ async function submit() { busy.value = true; try { const auth = await useNeonAut
 </script>
 <template>
   <h1 class="text-2xl font-black">Mot de passe oublié</h1>
-  <p v-if="sent" class="mt-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm" role="status">Si un compte existe pour cette adresse, un lien de réinitialisation vient d’être envoyé (valable 1 heure).</p>
+  <p v-if="sent" class="mt-4 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm" role="status">Si un compte existe pour cette adresse, un lien de réinitialisation vient d’être envoyé (valable 15 minutes).</p>
   <form v-else class="mt-6 space-y-4" @submit.prevent="submit"><label class="block"><span class="label">E-mail du compte</span><input v-model="email" type="email" required class="input"></label><button class="btn btn-primary w-full" :disabled="busy">Envoyer le lien</button></form>
   <NuxtLink to="/auth/login" class="mt-5 block text-sm text-accent underline">Retour à la connexion</NuxtLink>
 </template>
