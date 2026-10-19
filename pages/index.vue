@@ -4,7 +4,7 @@ const { current } = useTheme(); const reduced = useReducedMotion()
 const use3d = ref(false); const Ticket3D = defineAsyncComponent(() => import('~/components/Ticket3D.vue'))
 onMounted(() => { try { const gl = document.createElement('canvas').getContext('webgl2') || document.createElement('canvas').getContext('webgl'); use3d.value = !!gl && !reduced.value && window.innerWidth >= 768 && (navigator.hardwareConcurrency ?? 4) >= 4 } catch { use3d.value = false } })
 const { data: events } = await useAsyncData('home-events', async () => { try { return (await api<any>('/api/events?page=1')).items.slice(0, 3) } catch { return [] } })
-useSeoMeta({ title: 'Billetterie événementielle personnalisable', ogTitle: 'TYPS — Ton événement. Ton ticket. Ton contrôle.', ogDescription: 'Crée tes billets, vends tes entrées en FCFA et contrôle les accès par QR code.', twitterCard: 'summary_large_image' })
+useSeoMeta({ title: 'Billetterie événementielle personnalisable', ogTitle: 'TYPS — Ton événement. Ton ticket. Ton contrôle.', ogDescription: 'Crée tes billets, vends tes entrées en FCFA et contrôle les accès par QR code.', twitterCard: 'summary' })
 const benefits = [
   { icon: Zap, t: 'Vendre en quelques minutes', d: 'Crée l’événement, ajoute tes catégories (gratuit, standard, VIP, early bird…) et partage ton lien. Le paiement passe par FedaPay.' },
   { icon: ShieldCheck, t: 'Billets infalsifiables', d: 'Chaque QR code est unique, signé et vérifié par le serveur. Aucune donnée personnelle n’y figure, et un billet ne rentre qu’une fois.' },

@@ -8,6 +8,11 @@
 }
 @layer base {
   html { background: rgb(var(--c-bg)); color: rgb(var(--c-fg)); font-family: var(--font-theme); -webkit-font-smoothing: antialiased; scroll-behavior: smooth; }
+  html { scrollbar-color: rgb(var(--c-a)) rgb(var(--c-bg)); scrollbar-width: auto; }
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  ::-webkit-scrollbar-track { background: rgb(var(--c-bg)); }
+  ::-webkit-scrollbar-thumb { border: 3px solid rgb(var(--c-bg)); border-radius: 999px; background: linear-gradient(180deg, rgb(var(--c-a)), rgb(var(--c-b))); }
+  ::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, rgb(var(--c-b)), rgb(var(--c-a))); }
   body { min-height: 100dvh; background: rgb(var(--c-bg)); }
   :focus-visible { outline: 2px solid rgb(var(--c-a)); outline-offset: 3px; border-radius: 6px; }
   ::selection { background: rgb(var(--c-a) / .35); }
