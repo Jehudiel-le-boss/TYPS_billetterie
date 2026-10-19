@@ -1,9 +1,3 @@
 {
-  "buildCommand": "npm run db:migrate && npm run build",
-  "crons": [
-    {
-      "path": "/api/internal/cron",
-      "schedule": "*/5 * * * *"
-    }
-  ]
+  "buildCommand": "npm run db:migrate && npm run build"
 }

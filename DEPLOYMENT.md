@@ -38,12 +38,24 @@ Pointer le domaine (CNAME/A) vers l'hébergeur ; HTTPS automatique (Render, Fly,
 npm ci && npm run build
 node .output/server/index.mjs        # PORT=3000 par défaut
 ```
-Cron (toutes les 5 min) : `curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" https://VOTRE-DOMAINE/api/internal/cron` — libère les réservations expirées (après revérification FedaPay), envoie les rappels, prévient la liste d'attente.
+La route `POST /api/internal/cron` libère les réservations expirées (après revérification FedaPay), envoie les rappels et prévient la liste d'attente. Sur un serveur Node persistant, l'appeler toutes les 5 minutes :
+```bash
+curl -fsS -X POST -H "x-cron-secret: $CRON_SECRET" https://VOTRE-DOMAINE/api/internal/cron
+```
 
 ## 7 bis. Déploiement Vercel (domaine TYPS actuel)
-Le dépôt contient `vercel.json` : le build applique les migrations versionnées avec `DATABASE_URL_UNPOOLED`, puis construit Nuxt ; un cron appelle `/api/internal/cron` toutes les 5 minutes. Vercel transmet `Authorization: Bearer $CRON_SECRET`, accepté par cette route. Vérifier que le plan Vercel autorise cette fréquence.
+Le dépôt contient `vercel.json` : le build applique les migrations versionnées avec `DATABASE_URL_UNPOOLED`, puis construit Nuxt. Le plan Hobby de Vercel ne permet qu'un cron par jour ; il ne peut donc pas assurer l'expiration des réservations toutes les 5 minutes. Pour éviter un déploiement refusé et sans payer Vercel Pro, aucun cron Vercel n'est déclaré : utiliser un ordonnanceur externe tel que [cron-job.org](https://cron-job.org/en/), qui permet des appels HTTP POST toutes les minutes et des entêtes personnalisés.
+
+Configuration conseillée dans cron-job.org :
+1. Créer un cron vers `https://typs-ashy.vercel.app/api/internal/cron`, méthode `POST`, toutes les 5 minutes.
+2. Ajouter l'entête `x-cron-secret` avec la valeur de `CRON_SECRET` configurée dans Vercel. Ne jamais mettre ce secret dans l'URL ou le corps. L'ordonnanceur externe détiendra ce secret ; si cette confiance n'est pas souhaitée, choisir Vercel Pro et un cron natif.
+3. Vérifier dans l'historique des exécutions que la réponse est HTTP 200. L'endpoint accepte aussi `Authorization: Bearer <CRON_SECRET>` si l'ordonnanceur utilise cet entête.
+
+cron-job.org est gratuit mais n'offre pas la même garantie de disponibilité qu'un ordonnanceur géré. Ses appels expirent après 30 secondes ; garder un intervalle de 5 minutes et surveiller les échecs. Vercel Pro est l'alternative si une planification native avec fréquence à la minute est requise.
 
 Dans **Vercel → Settings → Environment Variables**, définir au minimum `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `NUXT_PUBLIC_SITE_URL=https://typs-ashy.vercel.app`, `SESSION_SECRET`, `QR_SECRET`, `CRON_SECRET`, `FEDAPAY_ENV=sandbox`, `FEDAPAY_SECRET_KEY_SANDBOX` et `FEDAPAY_WEBHOOK_SECRET_SANDBOX`. Pour un lancement réel, ajouter aussi un bucket S3/R2 privé (`S3_BUCKET`, identifiants et région), `RESEND_API_KEY` et `MAIL_FROM`. Ne jamais copier le `.env` local dans le dépôt.
+
+**E-mails et Brevo** : Brevo n'est pas nécessaire pour planifier ou exécuter le cron. Il faut en revanche un fournisseur d'e-mails pour envoyer les confirmations/rappels TYPS et les e-mails Neon Auth. TYPS intègre déjà Resend pour ses notifications ; garder Resend évite une modification du code. Brevo peut remplacer Resend, mais nécessite d'adapter l'intégration TYPS et/ou de configurer son SMTP dans Neon Auth. Ne pas payer les deux fournisseurs sans besoin.
 
 La route `/api/health` expose `ready` et les contrôles manquants sans révéler de secret. En production, `ready` reste faux tant que la base, les secrets, HTTPS, FedaPay/webhook, S3, l'e-mail et Neon Auth ne sont pas configurés et joignables. Le disque local est refusé comme stockage de fichiers en production.
 
