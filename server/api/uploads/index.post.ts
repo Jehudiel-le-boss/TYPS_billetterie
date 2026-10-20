@@ -22,7 +22,7 @@ export default api(async (e) => {
   if (!img) return fail(415, 'Format refusé : PNG ou JPEG uniquement (les PDF sont convertis dans l’éditeur)', 'bad_type')
   if (img.width > 6000 || img.height > 6000) return fail(422, 'Image trop grande (6000 px maximum)', 'too_large')
   const key = `org/${orgId}/${kind}/${randomToken(18)}.${img.mime === 'image/png' ? 'png' : 'jpg'}`
-  await putObject(key, file.data, img.mime)
-  const [a] = await useDb().insert(ticketTemplateAssets).values({ organizationId: orgId, kind, storageKey: key, mime: img.mime, bytes: file.data.length, width: img.width, height: img.height, createdBy: user.id }).returning()
-  return { id: a!.id, key, width: img.width, height: img.height, url: await signedUrl(key, 3600) }
+  const storageKey = await putObject(key, file.data, img.mime)
+  const [a] = await useDb().insert(ticketTemplateAssets).values({ organizationId: orgId, kind, storageKey, mime: img.mime, bytes: file.data.length, width: img.width, height: img.height, createdBy: user.id }).returning()
+  return { id: a!.id, key: storageKey, width: img.width, height: img.height, url: await signedUrl(storageKey, 3600) }
 })

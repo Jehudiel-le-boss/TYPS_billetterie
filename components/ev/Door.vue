@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // Ventes physiques : un encaissement n'est jamais automatique, il exige la confirmation explicite du vendeur.
 const props = defineProps<{ ev: any }>(); const emit = defineEmits<{ refresh: [] }>(); const toast = useToast()
+const { data: features } = await useAsyncData('platform-features', () => api<Record<string, boolean>>('/api/platform/features'), { server: false })
 const qty = reactive<Record<string, number>>({}); const method = ref('cash'); const received = ref(0); const holder = ref(''); const email = ref(''); const confirmed = ref(false); const busy = ref(false); const last = ref<any>(null)
 const total = computed(() => props.ev.categories.reduce((s: number, c: any) => s + (qty[c.id] ?? 0) * c.price, 0)); const count = computed(() => Object.values(qty).reduce((s, n) => s + n, 0))
 watch(total, (t) => { received.value = t })
@@ -13,7 +14,8 @@ async function cancel(o: any) { const reason = prompt('Motif de l’annulation ?
 const methods: [string, string][] = [['cash', 'Espèces'], ['mobile_money', 'Mobile money (déjà reçu)'], ['card_terminal', 'Terminal carte'], ['other', 'Autre']]
 </script>
 <template>
-  <div class="grid gap-6 xl:grid-cols-[1fr_380px]">
+  <div v-if="features && !features.physicalSales" class="card p-6 text-sm text-muted">Les ventes au guichet sont temporairement désactivées par l’administration TYPS.</div>
+  <div v-else class="grid gap-6 xl:grid-cols-[1fr_380px]">
     <form class="card space-y-5 p-5" @submit.prevent="sell"><h2 class="text-lg font-bold">Nouvelle vente au guichet</h2>
       <ul class="space-y-2"><li v-for="c in ev.categories" :key="c.id" class="flex items-center justify-between gap-3 rounded-xl border border-line p-3"><div><p class="font-semibold">{{ c.name }}</p><p class="text-sm text-muted">{{ money(c.price, ev.currency) }} · {{ c.quota - c.sold - c.reserved }} dispo.</p></div><div class="flex items-center gap-3"><button type="button" class="btn btn-ghost !h-11 !w-11 !p-0 text-xl" :disabled="!qty[c.id]" :aria-label="`Moins ${c.name}`" @click="qty[c.id] = Math.max(0, (qty[c.id] ?? 0) - 1)">−</button><output class="w-8 text-center text-lg font-bold">{{ qty[c.id] ?? 0 }}</output><button type="button" class="btn btn-ghost !h-11 !w-11 !p-0 text-xl" :disabled="(qty[c.id] ?? 0) >= c.quota - c.sold - c.reserved" :aria-label="`Plus ${c.name}`" @click="qty[c.id] = (qty[c.id] ?? 0) + 1">+</button></div></li></ul>
       <div class="grid gap-4 sm:grid-cols-2"><label class="block"><span class="label">Moyen de paiement encaissé</span><select v-model="method" class="input"><option v-for="m in methods" :key="m[0]" :value="m[0]">{{ m[1] }}</option></select></label><label class="block"><span class="label">Montant reçu ({{ ev.currency }})</span><input v-model.number="received" type="number" min="0" class="input"></label><label class="block"><span class="label">Nom sur le billet</span><input v-model="holder" class="input" placeholder="Client guichet"></label><label class="block"><span class="label">E-mail (facultatif)</span><input v-model="email" type="email" class="input"></label></div>

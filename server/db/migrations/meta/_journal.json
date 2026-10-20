@@ -15,6 +15,13 @@
       "when": 1792413323825,
       "tag": "0001_strange_rachel_grey",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792461758699,
+      "tag": "0002_user-notifications",
+      "breakpoints": true
     }
   ]
 }

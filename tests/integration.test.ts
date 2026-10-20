@@ -11,6 +11,8 @@ import { signTicketCode } from '../server/utils/qr'
 import { eventAccessOf } from '../server/utils/access'
 import { ZERO_FEES } from '../shared/money'
 import { eventCan } from '../shared/permissions'
+import { getPlatformFeatures, setPlatformFeatures } from '../server/services/settings'
+import { notifyOrganizationManagers } from '../server/services/notifications'
 
 let db: Db
 beforeAll(async () => { db = await makeDb() })
@@ -18,6 +20,32 @@ const pay = async (orderId: string, total: number, currency = 'XOF') => settleOr
 const cat = async (id: string) => (await db.select().from(s.ticketCategories).where(eq(s.ticketCategories.id, id)))[0]!
 const ticketsOf = (orderId: string) => db.select().from(s.tickets).where(eq(s.tickets.orderId, orderId))
 const scanCode = (t: { id: string; qrVersion: number }) => signTicketCode(t.id, t.qrVersion)
+
+describe('contrôle des fonctionnalités et notifications', () => {
+  it('utilise les valeurs par défaut puis persiste les choix admin', async () => {
+    const f = await fixture(db)
+    const defaults = await getPlatformFeatures(db)
+    expect(defaults).toMatchObject({ eventCreation: true, onlineSales: true, physicalSales: true, ticketTransfers: true, offlineScanning: true, inAppNotifications: true })
+    const changed = { ...defaults, physicalSales: false }
+    await setPlatformFeatures(db, f.user.id, changed)
+    expect(await getPlatformFeatures(db)).toEqual(changed)
+    await setPlatformFeatures(db, f.user.id, defaults)
+  })
+
+  it('notifie les gestionnaires d’organisation et respecte la désactivation admin', async () => {
+    const f = await fixture(db)
+    const defaults = await getPlatformFeatures(db)
+    await notifyOrganizationManagers(db, f.org.id, { kind: 'test', title: 'Nouvelle vente', body: 'Une vente a été enregistrée.', href: `/app/events/${f.ev.id}` })
+    let rows = await db.select().from(s.userNotifications).where(eq(s.userNotifications.userId, f.user.id))
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ kind: 'test', title: 'Nouvelle vente', href: `/app/events/${f.ev.id}` })
+    await setPlatformFeatures(db, f.user.id, { ...defaults, inAppNotifications: false })
+    await notifyOrganizationManagers(db, f.org.id, { kind: 'test', title: 'Ignorée', body: 'Ne doit pas apparaître.' })
+    rows = await db.select().from(s.userNotifications).where(eq(s.userNotifications.userId, f.user.id))
+    expect(rows).toHaveLength(1)
+    await setPlatformFeatures(db, f.user.id, defaults)
+  })
+})
 
 describe('quota et réservations', () => {
   it('20 achats simultanés sur 5 places : exactement 5 réussissent, jamais de survente', async () => {

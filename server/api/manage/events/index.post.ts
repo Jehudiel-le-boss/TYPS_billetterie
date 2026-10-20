@@ -6,7 +6,9 @@ import { eventCreateSchema } from '~~/shared/validation'
 import { randomCode, randomToken } from '~~/server/utils/crypto'
 import { slugify } from '~~/server/services/events'
 import { audit } from '~~/server/utils/audit'
+import { requirePlatformFeature } from '~~/server/utils/feature-gates'
 export default api(async (e) => {
+  await requirePlatformFeature(e, 'eventCreation')
   const b = await parseBody(e, eventCreateSchema)
   const { user } = await requireOrg(e, b.organizationId, 'event:write')
   const db = useDb()

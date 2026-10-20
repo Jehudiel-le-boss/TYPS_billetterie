@@ -4,8 +4,10 @@ import { requireEvent } from '~~/server/utils/access'
 import { buildOfflinePack } from '~~/server/services/scan'
 import { fail } from '~~/server/utils/errors'
 import { audit } from '~~/server/utils/audit'
+import { requirePlatformFeature } from '~~/server/utils/feature-gates'
 export const OFFLINE_TTL_HOURS = 12
 export default api(async (e) => {
+  await requirePlatformFeature(e, 'offlineScanning')
   const { user, event } = await requireEvent(e, uuidParam(e, 'eventId'), 'scan')
   if (!event.offlineEnabled) return fail(403, 'Le mode hors ligne est désactivé pour cet événement par l’organisateur', 'offline_disabled')
   const tickets = await buildOfflinePack(useDb(), event.id)

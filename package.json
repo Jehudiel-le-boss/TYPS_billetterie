@@ -28,6 +28,7 @@
     "@neondatabase/serverless": "^1.2.0",
     "@nuxtjs/tailwindcss": "^6.14.0",
     "@tresjs/core": "^5.9.3",
+    "cloudinary": "^2.11.0",
     "drizzle-orm": "^0.45.4",
     "fedapay": "^1.2.5",
     "fflate": "^0.8.3",

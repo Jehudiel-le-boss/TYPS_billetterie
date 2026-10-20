@@ -4,7 +4,9 @@ import { requireEvent } from '~~/server/utils/access'
 import { offlineSyncSchema } from '~~/shared/validation'
 import { syncOfflineScans } from '~~/server/services/scan'
 import { audit } from '~~/server/utils/audit'
+import { requirePlatformFeature } from '~~/server/utils/feature-gates'
 export default api(async (e) => {
+  await requirePlatformFeature(e, 'offlineScanning')
   const b = await parseBody(e, offlineSyncSchema)
   const { user, event } = await requireEvent(e, b.eventId, 'scan')
   const r = await syncOfflineScans(useDb(), { eventId: event.id, deviceId: b.deviceId, userId: user.id, scans: b.scans.map((s) => ({ digest: s.digest, scannedAt: s.scannedAt, gate: s.gate })) })

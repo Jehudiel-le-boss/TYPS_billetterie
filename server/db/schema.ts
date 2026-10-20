@@ -194,6 +194,11 @@ export const notificationJobs = pgTable('notification_jobs', {
 export const notificationLogs = pgTable('notification_logs', {
   id: id(), jobId: uuid('job_id').references(() => notificationJobs.id, { onDelete: 'set null' }), channel: text('channel').notNull().default('email'), status: text('status').notNull(), response: text('response'), createdAt: createdAt()
 })
+export const userNotifications = pgTable('user_notifications', {
+  id: id(), userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(), title: text('title').notNull(), body: text('body').notNull(), href: text('href'),
+  readAt: ts('read_at'), createdAt: createdAt()
+}, (t) => [index('user_notifications_user_created_idx').on(t.userId, t.createdAt), index('user_notifications_unread_idx').on(t.userId, t.readAt)])
 export const settlements = pgTable('settlements', {
   id: id(), organizationId: uuid('organization_id').notNull().references(() => organizations.id), eventId: uuid('event_id').references(() => events.id),
   periodStart: ts('period_start'), periodEnd: ts('period_end'), gross: integer('gross').notNull().default(0), providerFees: integer('provider_fees').notNull().default(0), platformFees: integer('platform_fees').notNull().default(0),

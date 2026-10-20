@@ -6,9 +6,11 @@ import { requireEvent } from '~~/server/utils/access'
 import { events, ticketCategories } from '~~/server/db/schema'
 import { fail } from '~~/server/utils/errors'
 import { audit } from '~~/server/utils/audit'
+import { requirePlatformFeature } from '~~/server/utils/feature-gates'
 export default api(async (e) => {
   const { user, event } = await requireEvent(e, uuidParam(e, 'id'), 'event:write')
   const { action } = await parseBody(e, z.object({ action: z.enum(['publish', 'suspend', 'close', 'cancel', 'draft']) }))
+  if (action === 'publish') await requirePlatformFeature(e, 'eventCreation')
   const db = useDb()
   if (event.moderation !== 'ok' && action === 'publish') fail(403, 'Événement modéré par TYPS : publication impossible', 'moderated')
   if (action === 'publish') {

@@ -4,6 +4,7 @@ import type { Db } from '../utils/db'
 import { HttpError } from '../utils/errors'
 import { randomToken, sha256, randomCode, verifyPassword } from '../utils/crypto'
 import { issueTickets } from './tickets'
+import { notifyOrganizationManagers } from './notifications'
 import { applyPromo, computeAmounts, type FeeConfig } from '../../shared/money'
 
 export const HOLD_MINUTES = 15
@@ -114,6 +115,15 @@ export async function settleOrderPaid(db: Db, orderId: string, p: SettleInput, n
     await tx.update(payments).set({ status: p.provider === 'none' ? 'approved' : 'approved', providerTxId: p.providerTxId ?? undefined, raw: p.raw ?? null, verifiedAt: now, updatedAt: now }).where(eq(payments.orderId, orderId))
     await tx.update(orders).set({ status: 'paid', paidAt: now, expiresAt: null, updatedAt: now }).where(eq(orders.id, orderId))
     for (const it of items) await issueTickets(tx as unknown as Db, { eventId: order.eventId, categoryId: it.categoryId, orderId, quantity: it.quantity, holderName: order.buyerName, holderEmail: order.buyerEmail, pricePaid: it.unitPrice, currency: order.currency, source: 'online', isDemo: order.isDemo })
+    if (!order.isDemo) {
+      const [event] = await tx.select({ title: events.title }).from(events).where(eq(events.id, order.eventId)).limit(1)
+      if (event) await notifyOrganizationManagers(tx as unknown as Db, order.organizationId, {
+        kind: 'sale_paid',
+        title: 'Nouvelle vente confirmée',
+        body: `${order.buyerName} a acheté ${items.reduce((sum, item) => sum + item.quantity, 0)} billet(s) pour ${event.title}.`,
+        href: `/app/events/${order.eventId}`
+      })
+    }
     return 'paid'
   })
 }

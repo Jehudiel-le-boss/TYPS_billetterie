@@ -6,7 +6,9 @@ import { orders, orderItems, payments, ticketTransfers, tickets } from '~~/serve
 import { randomCode, randomToken, sha256 } from '~~/server/utils/crypto'
 import { fail } from '~~/server/utils/errors'
 import { audit } from '~~/server/utils/audit'
+import { requirePlatformFeature } from '~~/server/utils/feature-gates'
 export default api(async (e) => {
+  await requirePlatformFeature(e, 'ticketTransfers')
   limit(e, 'transfer-accept', 20, 3600_000)
   const { token } = await parseBody(e, z.object({ token: z.string().min(20).max(100) }))
   const db = useDb()

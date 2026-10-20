@@ -4,6 +4,7 @@ const route = useRoute(); const slug = String(route.params.slug); const k = rout
 useHead({ meta: [{ name: 'robots', content: 'noindex' }] }); useSeoMeta({ title: 'Acheter mes billets' })
 const { data: ev, error } = await useAsyncData(`buy-${slug}`, () => api<any>(`/api/events/${slug}`, { query: { k } }))
 if (error.value) throw createError({ statusCode: 404, statusMessage: 'Événement introuvable', fatal: true })
+const { data: features } = await useAsyncData('platform-features', () => api<{ onlineSales: boolean }>('/api/platform/features'))
 const vars = computed(() => toStyle(cssVars(themeById(ev.value?.themeId))))
 const me = useMe(); const toast = useToast()
 const qty = reactive<Record<string, number>>({}); const buyer = reactive({ name: me.value.user?.fullName ?? '', email: me.value.user?.email ?? '', phone: '' }); const promo = ref(''); const accessCode = ref(''); const terms = ref(false); const busy = ref(false)
@@ -15,6 +16,7 @@ async function refreshQuote() { if (!items.value.length) { quote.value = null; r
 watch([items, promo], () => { clearTimeout(qt); qt = setTimeout(refreshQuote, 250) }, { deep: true })
 const step = (c: any, d: number) => { const max = Math.min(c.available, c.maxPerOrder ?? ev.value.maxPerOrder); qty[c.id] = Math.max(0, Math.min(max, (qty[c.id] ?? 0) + d)) }
 async function pay() {
+  if (features.value && !features.value.onlineSales) return toast.err('Les ventes en ligne sont temporairement suspendues')
   if (!terms.value) return toast.err('Accepte les conditions de vente pour continuer')
   busy.value = true
   try {
@@ -27,6 +29,7 @@ async function pay() {
   <div v-if="ev" :style="vars" class="min-h-screen bg-bg text-fg"><div class="container-x py-10">
     <NuxtLink :to="`/events/${slug}${k ? `?k=${k}` : ''}`" class="text-sm text-muted hover:text-fg">← {{ ev.title }}</NuxtLink>
     <h1 class="mt-3 text-[clamp(1.8rem,4vw,2.8rem)] font-black">Mes billets</h1>
+    <p v-if="features && !features.onlineSales" class="mt-5 rounded-xl border border-amber-400/40 bg-amber-400/10 p-4 text-sm text-amber-100" role="status">Les ventes en ligne sont temporairement suspendues par TYPS.</p>
     <div class="mt-8 grid gap-8 lg:grid-cols-[1.3fr_1fr]">
       <form class="space-y-8" @submit.prevent="pay">
         <section aria-labelledby="h-cat"><h2 id="h-cat" class="text-xl font-bold">1. Catégorie et quantité</h2>
@@ -37,12 +40,12 @@ async function pay() {
             <label v-if="ev.requiresAccessCode" class="block"><span class="label">Code d’accès</span><input v-model="accessCode" required class="input"></label></div></section>
         <section aria-labelledby="h-promo"><h2 id="h-promo" class="text-xl font-bold">3. Code promo</h2><div class="mt-4 max-w-sm"><label class="sr-only" for="promo">Code promo</label><input id="promo" v-model="promo" class="input uppercase" placeholder="CODE PROMO"><p v-if="quote?.promo" class="hint text-emerald-400">Code « {{ quote.promo }} » appliqué</p><p v-else-if="quoteErr && promo" class="hint text-red-300" role="alert">{{ quoteErr }}</p></div></section>
         <label class="flex items-start gap-3 text-sm"><input v-model="terms" type="checkbox" class="mt-1 h-5 w-5 accent-[rgb(var(--c-a))]" required><span>J’accepte les <NuxtLink to="/legal/conditions" target="_blank" class="text-accent underline">conditions de vente</NuxtLink> et la <NuxtLink to="/legal/remboursement" target="_blank" class="text-accent underline">politique de remboursement</NuxtLink>.</span></label>
-        <button class="btn btn-primary w-full !min-h-[56px] text-lg lg:hidden" :disabled="busy || !count">{{ busy ? 'Redirection…' : quote ? `Payer ${money(quote.total, ev.currency)}` : 'Choisis tes billets' }}</button>
+        <button class="btn btn-primary w-full !min-h-[56px] text-lg lg:hidden" :disabled="busy || !count || features?.onlineSales === false">{{ busy ? 'Redirection…' : quote ? `Payer ${money(quote.total, ev.currency)}` : 'Choisis tes billets' }}</button>
       </form>
       <aside class="lg:sticky lg:top-24 lg:self-start"><div class="card space-y-4 p-5"><h2 class="text-xl font-bold">Récapitulatif</h2>
         <UiEmpty v-if="!quote" title="Aucun billet choisi" text="Sélectionne une catégorie pour voir le total." />
         <dl v-else class="space-y-2 text-sm"><div class="flex justify-between"><dt class="text-muted">Sous-total</dt><dd class="font-semibold">{{ money(quote.subtotal, ev.currency) }}</dd></div><div v-if="quote.discount" class="flex justify-between text-emerald-400"><dt>Réduction</dt><dd>− {{ money(quote.discount, ev.currency) }}</dd></div><div v-if="quote.buyerFees" class="flex justify-between"><dt class="text-muted">Frais de service</dt><dd class="font-semibold">{{ money(quote.buyerFees, ev.currency) }}</dd></div><div class="perf my-3" /><div class="flex items-baseline justify-between text-lg"><dt class="font-bold">Total</dt><dd class="font-display text-2xl font-black">{{ quote.total === 0 ? 'Gratuit' : money(quote.total, ev.currency) }}</dd></div></dl>
-        <button class="btn btn-primary hidden w-full !min-h-[56px] text-lg lg:inline-flex" :disabled="busy || !count || !terms" @click="pay">{{ busy ? 'Redirection…' : quote?.total === 0 ? 'Obtenir mes billets' : 'Payer avec FedaPay' }}</button>
+        <button class="btn btn-primary hidden w-full !min-h-[56px] text-lg lg:inline-flex" :disabled="busy || !count || !terms || features?.onlineSales === false" @click="pay">{{ busy ? 'Redirection…' : quote?.total === 0 ? 'Obtenir mes billets' : 'Payer avec FedaPay' }}</button>
         <p class="text-xs text-muted">Tu seras redirigé vers la page de paiement officielle. Tes billets ne sont émis qu’après confirmation du paiement par nos serveurs.</p></div></aside>
     </div></div></div>
 </template>

@@ -16,8 +16,10 @@ Le build produit `.output/` (démarrage : `node .output/server/index.mjs`, varia
 ## 3. Variables d'environnement (voir `.env.example`)
 Obligatoires : `DATABASE_URL` (pooler, runtime), `DATABASE_URL_UNPOOLED` (connexion directe, migrations), `NUXT_PUBLIC_SITE_URL` (URL publique HTTPS), `SESSION_SECRET`, `QR_SECRET`, `CRON_SECRET` (`openssl rand -base64 48`). Laisser `APP_ENV` **vide** (= production) et `DEMO_MODE` absent/`false`. Le serveur refuse de démarrer sans secrets valides.
 
-## 4. Stockage des fichiers (S3-compatible)
-Créer un bucket **privé** (Cloudflare R2, AWS S3, MinIO…) et un jeton d'accès limité à ce bucket. Renseigner `S3_ENDPOINT` (R2 : `https://<account>.r2.cloudflarestorage.com`), `S3_REGION` (`auto` pour R2), `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`. Les fichiers sont servis par **URLs signées temporaires** ; aucun accès public. Sans `S3_BUCKET`, TYPS écrit sur le disque local (`.data/uploads`) : **à proscrire en production** (disque éphémère).
+## 4. Stockage des fichiers
+Pour les images, Cloudinary est pris en charge avec `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY` et `CLOUDINARY_API_SECRET`. TYPS téléverse les images en delivery privé (`type=private`) ; il ne livre pas les URL Cloudinary directement, mais les sert via ses liens HMAC temporaires. Aucun secret Cloudinary n'est envoyé au navigateur. Les fichiers S3 déjà enregistrés restent pris en charge si les identifiants S3 correspondants sont conservés.
+
+Alternative : créer un bucket **privé** (Cloudflare R2, AWS S3, MinIO…) et un jeton d'accès limité à ce bucket. Renseigner `S3_ENDPOINT` (R2 : `https://<account>.r2.cloudflarestorage.com`), `S3_REGION` (`auto` pour R2), `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`. Sans Cloudinary ni bucket S3, TYPS écrit sur le disque local (`.data/uploads`) : **à proscrire en production** (disque éphémère).
 
 ## 5. FedaPay
 1. Créer un compte marchand FedaPay. **Sandbox d'abord** : `FEDAPAY_ENV=sandbox`, clé secrète sandbox dans `FEDAPAY_SECRET_KEY_SANDBOX`.
@@ -53,7 +55,7 @@ Configuration conseillée dans cron-job.org :
 
 cron-job.org est gratuit mais n'offre pas la même garantie de disponibilité qu'un ordonnanceur géré. Ses appels expirent après 30 secondes ; garder un intervalle de 5 minutes et surveiller les échecs. Vercel Pro est l'alternative si une planification native avec fréquence à la minute est requise.
 
-Dans **Vercel → Settings → Environment Variables**, définir au minimum `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `NEON_AUTH_BASE_URL`, `NUXT_PUBLIC_SITE_URL=https://typs-ashy.vercel.app`, `SESSION_SECRET`, `QR_SECRET`, `CRON_SECRET`, `FEDAPAY_ENV=sandbox`, `FEDAPAY_SECRET_KEY_SANDBOX` et `FEDAPAY_WEBHOOK_SECRET_SANDBOX`. Pour un lancement réel, ajouter aussi un bucket S3/R2 privé (`S3_BUCKET`, identifiants et région), `RESEND_API_KEY` et `MAIL_FROM`. Ne jamais copier le `.env` local dans le dépôt.
+Dans **Vercel → Settings → Environment Variables**, définir au minimum `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `NEON_AUTH_BASE_URL`, `NUXT_PUBLIC_SITE_URL=https://typs-ashy.vercel.app`, `SESSION_SECRET`, `QR_SECRET`, `CRON_SECRET`, `FEDAPAY_ENV=sandbox`, `FEDAPAY_SECRET_KEY_SANDBOX` et `FEDAPAY_WEBHOOK_SECRET_SANDBOX`. Pour un lancement réel, ajouter le stockage Cloudinary (`CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`) ou un bucket S3/R2 privé, ainsi que `RESEND_API_KEY` et `MAIL_FROM`. Ne jamais copier le `.env` local dans le dépôt.
 
 **E-mails et Brevo** : Brevo n'est pas nécessaire pour planifier ou exécuter le cron. Il faut en revanche un fournisseur d'e-mails pour envoyer les confirmations/rappels TYPS et les e-mails Neon Auth. TYPS intègre déjà Resend pour ses notifications ; garder Resend évite une modification du code. Brevo peut remplacer Resend, mais nécessite d'adapter l'intégration TYPS et/ou de configurer son SMTP dans Neon Auth. Ne pas payer les deux fournisseurs sans besoin.
 
@@ -70,6 +72,9 @@ Dans Neon Console, activer Managed Better Auth sur la même branche/base que l'a
 Le SDK `@neondatabase/auth` est actuellement distribué en version bêta ; valider inscription, vérification d'e-mail, connexion, réinitialisation et rattachement d'un ancien compte sur la branche Neon de recette avant l'ouverture commerciale.
 
 **FedaPay webhook** : URL `https://typs-ashy.vercel.app/api/webhooks/fedapay`, vérification SSL activée, pas d'entêtes/corps personnalisés. Garder « recevoir tous les événements » ou sélectionner tous les événements `transaction.*` pour ne pas manquer les notifications de paiement. Enregistrer le secret de signature dans `FEDAPAY_WEBHOOK_SECRET_SANDBOX` côté Vercel ; il est différent des clés publique et secrète.
+
+## 7 ter. Profil, notifications et contrôles de fonctionnalités
+Après application des migrations, les utilisateurs connectés peuvent gérer leur nom, téléphone et photo depuis **Mon espace → Mon profil**. Les notifications in-app sont accessibles depuis la cloche et **Mon espace → Notifications**. Un administrateur plateforme peut activer ou désactiver globalement la création d’événements, les ventes en ligne, les ventes au guichet, les transferts de billets, le scan hors ligne et le centre de notifications depuis **Admin → Fonctionnalités**. Les décisions sont vérifiées côté serveur ; masquer un contrôle côté interface ne constitue pas une protection. Ces interrupteurs ne désactivent pas les fournisseurs d’authentification Neon.
 
 ## 8. Contrôles post-déploiement
 - `GET /api/health` → `ready:true`, `neonAuthStatus:"ready"` et aucun blocker ; le endpoint vérifie la table Neon Auth et l’accès à son JWKS.

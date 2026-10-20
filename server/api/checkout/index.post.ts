@@ -8,11 +8,13 @@ import { createPayment } from '~~/server/services/fedapay'
 import { events, orders, payments } from '~~/server/db/schema'
 import { env } from '~~/server/utils/env'
 import { fail } from '~~/server/utils/errors'
+import { requirePlatformFeature } from '~~/server/utils/feature-gates'
 
 export default api(async (e) => {
   limit(e, 'checkout', 20, 600_000)
   const b = await parseBody(e, checkoutSchema)
   const db = useDb()
+  await requirePlatformFeature(e, 'onlineSales')
   const [ev] = await db.select({ isDemo: events.isDemo, title: events.title }).from(events).where(eq(events.id, b.eventId)).limit(1)
   if (!ev) return fail(404, 'Événement introuvable', 'not_found')
   const demo = ev.isDemo && env.demoMode()

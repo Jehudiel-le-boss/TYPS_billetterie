@@ -34,5 +34,6 @@ export const env = {
     }
   },
   s3: () => ({ endpoint: process.env.S3_ENDPOINT || '', region: process.env.S3_REGION || 'auto', bucket: process.env.S3_BUCKET || '', accessKeyId: process.env.S3_ACCESS_KEY_ID || '', secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || '' }),
+  cloudinary: () => ({ cloudName: process.env.CLOUDINARY_CLOUD_NAME || '', apiKey: process.env.CLOUDINARY_API_KEY || '', apiSecret: process.env.CLOUDINARY_API_SECRET || '' }),
   mail: () => ({ apiKey: process.env.RESEND_API_KEY || '', from: process.env.MAIL_FROM || 'TYPS <billets@localhost>' })
 }

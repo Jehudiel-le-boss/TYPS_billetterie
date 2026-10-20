@@ -9,8 +9,10 @@ import { randomToken, sha256 } from '~~/server/utils/crypto'
 import { sendEmail, mailLayout } from '~~/server/services/mail'
 import { env } from '~~/server/utils/env'
 import { fail } from '~~/server/utils/errors'
+import { requirePlatformFeature } from '~~/server/utils/feature-gates'
 // Le transfert n'est effectif qu'à l'acceptation : l'ancien QR est alors invalidé (qr_version + 1) et un nouvel accès est créé.
 export default api(async (e) => {
+  await requirePlatformFeature(e, 'ticketTransfers')
   const t = await requireTicketAccess(e, uuidParam(e, 'id')); limit(e, 'transfer', 10, 3600_000)
   const [ev] = await useDb().select().from(events).where(eq(events.id, t.eventId)).limit(1)
   if (!ev?.transfersEnabled) return fail(403, 'Les transferts ne sont pas autorisés pour cet événement', 'transfers_disabled')
