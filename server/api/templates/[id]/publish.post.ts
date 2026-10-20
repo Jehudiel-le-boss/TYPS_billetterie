@@ -13,7 +13,7 @@ export default api(async (e) => {
   const layout = sanitizeLayout(template.draftLayout)
   const qr = layout.elements.find((x) => x.type === 'qr' && !x.hidden)
   if (!qr || qr.type !== 'qr') return fail(422, 'Ajoutez un QR code au billet avant de publier', 'no_qr')
-  if (!qrContrastOk(qr.fg, qr.bg)) return fail(422, 'Contraste du QR insuffisant (ratio 4:1 requis, modules plus sombres que le fond)', 'qr_contrast')
+  if (!qrContrastOk(qr.fg, qr.bg)) return fail(422, 'QR illisible : contraste 4:1 minimum, modules plus sombres que le fond. Corrige ses couleurs (par exemple noir sur blanc).', 'qr_contrast')
   if (Math.min(qr.w, qr.h) < 90) return fail(422, 'QR trop petit : 90 px minimum pour une lecture fiable', 'qr_small')
   const db = useDb()
   const v = await db.transaction(async (tx) => {

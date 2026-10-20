@@ -8,7 +8,7 @@ Mots de passe : **scrypt** (N=16384, sel aléatoire), comparaison en temps const
 Commandes/billets : accès par **jeton d'accès** (lien e-mail, haché en base), compte vérifié de même adresse, ou équipe de l'organisateur — jamais par identifiant seul.
 
 ## CSRF, XSS, injections
-CSRF : cookies SameSite=Lax + contrôle d'origine (`Origin` / `Sec-Fetch-Site`) sur toute requête mutante `/api` (hors webhook signé et cron à secret). XSS : Vue échappe par défaut, `v-html` interdit dans le code, CSP/en-têtes (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, HSTS en production) via `server/middleware/security.ts`. SQL : Drizzle paramétré ; le SQL brut utilise des paramètres liés. Entrées : **Zod** sur chaque corps/paramètre ; gabarits de billet re-validés (`sanitizeLayout`) ; export CSV neutralisant l'injection de formules.
+CSRF : cookies SameSite=Lax + contrôle d'origine (`Origin` / `Sec-Fetch-Site`) sur toute requête mutante `/api` (hors webhook signé et cron à secret). XSS : Vue échappe par défaut ; le seul rendu HTML riche (`v-html` de description d'événement) est nettoyé avec une liste blanche côté serveur avant stockage et à la lecture publique. Ne pas ajouter de nouveau `v-html` sans nettoyage équivalent. CSP/en-têtes (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, HSTS en production) via `server/middleware/security.ts`. SQL : Drizzle paramétré ; le SQL brut utilise des paramètres liés. Entrées : **Zod** sur chaque corps/paramètre ; gabarits de billet re-validés (`sanitizeLayout`) ; export CSV neutralisant l'injection de formules.
 
 ## QR codes
 Contenu : `TYPS1.<uuid>.<version>.<HMAC-SHA256 128 bits>` — **référence opaque signée**, aucune donnée personnelle, imprévisible (le numéro imprimé `TY-XXXXXXXX` n'est pas le contenu du QR). Vérifié en temps constant côté serveur (`QR_SECRET`). `qr_version` incrémenté au transfert → l'ancien QR est invalidé. Test de lisibilité (contraste ≥ 4:1, taille ≥ 90 px, décodage jsQR) à la publication d'un modèle.
@@ -28,6 +28,9 @@ Pack = empreintes tronquées (SHA-256) + catégorie + référence, **sans secret
 
 ## Secrets et configuration
 Secrets lus à l'exécution (`process.env`), jamais committés (`.env` ignoré), jamais envoyés au navigateur. En production, `SESSION_SECRET` et `QR_SECRET` (≥ 16 caractères) sont obligatoires (le serveur refuse de démarrer sans). **Mode démo impossible en production** (`APP_ENV` vide/`production`). Rotation de `QR_SECRET` = invalidation de tous les QR émis : à éviter hors incident.
+
+## Cookies et stockage navigateur
+Les cookies de session sont nécessaires à l'authentification et sont `HttpOnly`, `SameSite=Lax` et `Secure` en production. `typs_theme` et `typs_org` mémorisent respectivement le thème et l'organisation active. Le guide de démarrage mémorise localement qu'il a déjà été affiché. Aucun cookie publicitaire ou outil d'analyse d'audience n'est actuellement installé ; ne pas ajouter de suivi non essentiel sans définir les finalités, la durée de conservation et le mécanisme de consentement.
 
 ## Points à traiter avant la production
 Faire relire les textes légaux ; configurer Redis pour le rate-limit si multi-instances ; activer l'envoi d'e-mails (Resend) ; configurer le webhook FedaPay et tester en sandbox puis en live ; sauvegardes Neon testées ; revue de conformité des données personnelles (Code du numérique du Bénin, autorité de protection des données) par un juriste local.

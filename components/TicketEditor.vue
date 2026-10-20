@@ -109,7 +109,17 @@ const formatId = computed(() => PRINT_FORMATS.find((f) => f.width === layout.val
 // Test du QR : génère le QR avec les couleurs choisies puis tente de le décoder
 const qrTest = reactive<{ open: boolean; ok: boolean | null; ratio: number; url: string }>({ open: false, ok: null, ratio: 0, url: '' })
 async function testQr() { const q = layout.value.elements.find((e) => e.type === 'qr') as any; if (!q) return toast.err('Ajoutez d’abord un QR code'); const url = await qrFor(SAMPLE_QR, q.fg, q.bg, q.quiet); Object.assign(qrTest, { open: true, url, ratio: contrastRatio(q.fg, q.bg), ok: null }); qrTest.ok = (await decodeQrDataUrl(url)) === SAMPLE_QR }
-async function publish() { await save(); try { const r = await api<{ version: number }>(`/api/templates/${props.templateId}/publish`, { method: 'POST' }); tpl.value!.published = true; toast.ok(`Version ${r.version} publiée : les prochains billets l’utiliseront`) } catch (e) { toast.err(errMsg(e)) } }
+function fixQrContrast(q: Extract<TplElement, { type: 'qr' }>) { snapshot(); q.fg = '#000000'; q.bg = '#ffffff' }
+async function publish() {
+  const qrElement = layout.value.elements.find((e): e is Extract<TplElement, { type: 'qr' }> => e.type === 'qr' && !e.hidden)
+  if (qrElement && !qrContrastOk(qrElement.fg, qrElement.bg)) {
+    sel.value = qrElement.id
+    toast.err('Le QR doit avoir un contraste d’au moins 4:1 et des modules plus sombres que le fond. Utilise le bouton de correction dans ses propriétés.')
+    return
+  }
+  await save()
+  try { const r = await api<{ version: number }>(`/api/templates/${props.templateId}/publish`, { method: 'POST' }); tpl.value!.published = true; toast.ok(`Version ${r.version} publiée : les prochains billets l’utiliseront`) } catch (e) { toast.err(errMsg(e)) }
+}
 onBeforeUnmount(() => { clearTimeout(timer); if (saveState.value === 'dirty') save() })
 const stateText = computed(() => ({ saved: savedAt.value ? `Enregistré à ${savedAt.value.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` : 'À jour', saving: 'Enregistrement…', dirty: 'Modifications non enregistrées', error: 'Échec de l’enregistrement' })[saveState.value])
 const handles = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
@@ -119,7 +129,7 @@ const hpos = (h: string) => ({ left: h.includes('w') ? '0%' : h.includes('e') ? 
 <template>
   <div v-if="error" class="p-8"><UiEmpty title="Modèle introuvable" text="Il n’existe pas ou vous n’y avez pas accès." /></div>
   <div v-else-if="!layout" class="p-8"><div class="skeleton h-[60vh]" /></div>
-  <div v-else class="flex h-[calc(100dvh-4rem)] min-h-[560px] flex-col" @keydown="onKey">
+  <div v-else class="flex min-h-[calc(100dvh-4rem)] flex-col lg:h-[calc(100dvh-4rem)] lg:min-h-[560px]" @keydown="onKey">
     <!-- Barre d'outils -->
     <div class="flex flex-wrap items-center gap-2 border-b border-line bg-surface/60 px-3 py-2 backdrop-blur">
       <NuxtLink to="/app/studio" class="btn btn-ghost !min-h-[40px] px-3" aria-label="Retour au Studio">←</NuxtLink>
@@ -138,9 +148,9 @@ const hpos = (h: string) => ({ left: h.includes('w') ? '0%' : h.includes('e') ? 
       </div>
     </div>
 
-    <div class="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[270px_1fr_300px]">
+    <div class="grid flex-none grid-cols-1 lg:min-h-0 lg:flex-1 lg:grid-cols-[270px_1fr_300px]">
       <!-- Éléments -->
-      <aside class="order-2 max-h-[40vh] overflow-y-auto border-line bg-surface/40 p-3 lg:order-1 lg:max-h-none lg:border-r" aria-label="Éléments du billet">
+      <aside class="order-2 border-line bg-surface/40 p-4 pb-8 lg:order-1 lg:min-h-0 lg:overflow-y-auto lg:border-r" aria-label="Éléments du billet">
         <p class="label">Champs dynamiques</p>
         <div class="grid grid-cols-2 gap-1.5"><button v-for="f in FIELD_KEYS.filter((k) => k !== 'organizer_logo')" :key="f" class="rounded-lg border border-line px-2 py-2 text-left text-xs font-medium hover:border-accent" @click="addField(f)">{{ FIELD_LABELS[f] }}</button></div>
         <p class="label mt-4">Ajouter</p>
@@ -166,7 +176,7 @@ const hpos = (h: string) => ({ left: h.includes('w') ? '0%' : h.includes('e') ? 
       </aside>
 
       <!-- Scène -->
-      <main ref="stageBox" class="order-1 min-h-[300px] overflow-auto bg-[radial-gradient(circle_at_50%_0%,rgb(var(--c-b)/.12),transparent_60%)] p-6 lg:order-2" tabindex="0" aria-label="Zone d’édition du billet" @pointerdown="sel = null">
+      <main ref="stageBox" class="order-1 min-h-[45vh] overflow-auto bg-[radial-gradient(circle_at_50%_0%,rgb(var(--c-b)/.12),transparent_60%)] p-6 lg:order-2 lg:min-h-0" tabindex="0" aria-label="Zone d’édition du billet" @pointerdown="sel = null">
         <div v-if="mode === 'edit'" class="mx-auto" :style="{ width: layout.width * zoom + 'px', height: layout.height * zoom + 'px' }">
           <div class="relative origin-top-left shadow-deep" :style="{ width: layout.width + 'px', height: layout.height + 'px', transform: `scale(${zoom})` }">
             <TicketRender :layout="layout" :ctx="SAMPLE_CONTEXT" :qr="qr" :assets="assets" />
@@ -182,7 +192,7 @@ const hpos = (h: string) => ({ left: h.includes('w') ? '0%' : h.includes('e') ? 
       </main>
 
       <!-- Propriétés -->
-      <aside class="order-3 max-h-[40vh] overflow-y-auto border-line bg-surface/40 p-3 lg:max-h-none lg:border-l" aria-label="Propriétés">
+      <aside class="order-3 border-line bg-surface/40 p-4 pb-8 lg:min-h-0 lg:overflow-y-auto lg:border-l" aria-label="Propriétés">
         <div v-if="!el"><p class="font-display text-sm font-bold">Propriétés</p><p class="hint">Sélectionnez un élément sur le billet pour modifier sa position, sa taille, sa couleur…</p><p class="hint mt-3">Raccourcis : flèches (±1, Maj ±10), Suppr, Ctrl+Z / Y, Ctrl+D.</p></div>
         <div v-else class="space-y-3">
           <p class="font-display text-sm font-bold">{{ label(el) }}</p>
@@ -205,7 +215,8 @@ const hpos = (h: string) => ({ left: h.includes('w') ? '0%' : h.includes('e') ? 
           <template v-if="el.type === 'qr'">
             <div class="grid grid-cols-2 gap-2"><label class="text-xs text-muted">Modules<input v-model="el.fg" type="color" class="h-10 w-full rounded-lg border border-line bg-transparent" @focus="snapshot()"></label><label class="text-xs text-muted">Fond<input v-model="el.bg" type="color" class="h-10 w-full rounded-lg border border-line bg-transparent" @focus="snapshot()"></label></div>
             <label class="flex min-h-[40px] items-center gap-2 text-sm"><input v-model="el.quiet" type="checkbox" class="accent-[rgb(var(--c-a))]" @focus="snapshot()"> Marge de silence</label>
-            <p class="text-xs" :class="contrastRatio(el.fg, el.bg) >= 4 ? 'text-emerald-400' : 'text-red-400'">Contraste {{ contrastRatio(el.fg, el.bg).toFixed(1) }}:1 — {{ contrastRatio(el.fg, el.bg) >= 4 ? 'lisible' : 'insuffisant (4:1 requis)' }}</p>
+            <p class="text-xs" :class="qrContrastOk(el.fg, el.bg) ? 'text-emerald-400' : 'text-red-400'">Lisibilité du QR (pas un contrôle du contraste du texte) : {{ contrastRatio(el.fg, el.bg).toFixed(1) }}:1 — {{ qrContrastOk(el.fg, el.bg) ? 'conforme au seuil de scan' : 'insuffisant, 4:1 minimum et modules plus sombres que le fond' }}</p>
+            <button v-if="!qrContrastOk(el.fg, el.bg)" type="button" class="btn btn-ghost !min-h-[40px] w-full" @click="fixQrContrast(el)">Corriger automatiquement (noir sur blanc)</button>
           </template>
           <label v-if="el.type === 'image'" class="block text-xs text-muted">Ajustement<select v-model="el.fit" class="input" @focus="snapshot()"><option value="contain">Contenir</option><option value="cover">Remplir</option></select></label>
           <div class="grid grid-cols-2 gap-1.5"><button class="btn btn-ghost !min-h-[38px] !rounded-lg text-xs" @click="order('front')">Premier plan</button><button class="btn btn-ghost !min-h-[38px] !rounded-lg text-xs" @click="order('back')">Arrière-plan</button><button class="btn btn-ghost !min-h-[38px] !rounded-lg text-xs" @click="order('up')">Monter</button><button class="btn btn-ghost !min-h-[38px] !rounded-lg text-xs" @click="order('down')">Descendre</button><button class="btn btn-ghost !min-h-[38px] !rounded-lg text-xs" @click="dup">Dupliquer</button><button class="btn btn-danger !min-h-[38px] !rounded-lg text-xs" @click="del">Supprimer</button></div>

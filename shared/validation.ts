@@ -7,10 +7,13 @@ export const slugSchema = z.string().trim().toLowerCase().regex(/^[a-z0-9]+(-[a-
 export const eventCreateSchema = z.object({
   organizationId: z.string().uuid(),
   title: z.string().trim().min(3).max(140),
-  description: z.string().trim().max(8000).default(''),
+  description: z.string().trim().max(20_000).default(''),
   category: z.string().trim().max(40).default('soirée'),
   visibility: z.enum(['public', 'private', 'invite']).default('public'),
   startsAt: z.coerce.date(), endsAt: z.coerce.date().optional(),
+  faq: z.array(z.object({ question: z.string().trim().min(3).max(160), answer: z.string().trim().min(1).max(2000) })).max(20).default([]),
+  countdownEnabled: z.boolean().default(true),
+  countdownUnits: z.array(z.enum(['days', 'hours', 'minutes', 'seconds'])).max(4).default(['days', 'hours', 'minutes', 'seconds']).refine((units) => new Set(units).size === units.length, 'Unités de compte à rebours en double'),
   timezone: z.string().max(60).default('Africa/Porto-Novo'),
   currency: z.string().length(3).default('XOF'),
   capacity: z.number().int().min(1).max(1_000_000),
@@ -20,6 +23,7 @@ export const eventCreateSchema = z.object({
   salesOpenAt: z.coerce.date().optional(), salesCloseAt: z.coerce.date().optional(),
   themeId: z.string().max(40).default('neon-cyber')
 }).refine((v) => !v.endsAt || v.endsAt >= v.startsAt, { message: 'La fin doit suivre le début', path: ['endsAt'] })
+  .refine((v) => !v.countdownEnabled || v.countdownUnits.length > 0, { message: 'Choisissez au moins une unité pour le compte à rebours', path: ['countdownUnits'] })
 export const categorySchema = z.object({
   name: z.string().trim().min(1).max(80),
   kind: z.enum(['free', 'standard', 'vip', 'backstage', 'early_bird', 'group', 'custom']).default('standard'),

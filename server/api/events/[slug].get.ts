@@ -10,6 +10,7 @@ import { eventAccessOf } from '~~/server/utils/access'
 import { eventCan } from '~~/shared/permissions'
 import { categoriesWithAvailability } from '~~/server/services/events'
 import { signedUrl } from '~~/server/services/storage'
+import { sanitizeEventDescription } from '~~/server/utils/rich-content'
 
 export default api(async (e) => {
   const slug = String(getRouterParam(e, 'slug') ?? '').toLowerCase()
@@ -23,8 +24,8 @@ export default api(async (e) => {
   const publicOk = ev.status === 'published' && ev.moderation === 'ok' && (ev.visibility === 'public' || linkOk)
   if (!publicOk && !staffView && !(ev.status === 'closed' && (ev.visibility === 'public' || linkOk))) return fail(404, 'Événement introuvable', 'not_found')
   return {
-    id: ev.id, slug: ev.slug, title: ev.title, description: ev.description, category: ev.category, status: ev.status, visibility: ev.visibility, startsAt: ev.startsAt, endsAt: ev.endsAt, timezone: ev.timezone, currency: ev.currency,
-    themeId: ev.themeId, isDemo: ev.isDemo, requiresAccessCode: ev.visibility === 'invite' || (ev.visibility === 'private' && !!ev.accessCodeHash), transfersEnabled: ev.transfersEnabled, refundPolicy: ev.refundPolicy, maxPerOrder: ev.maxPerOrder,
+    id: ev.id, slug: ev.slug, title: ev.title, description: sanitizeEventDescription(ev.description), category: ev.category, status: ev.status, visibility: ev.visibility, startsAt: ev.startsAt, endsAt: ev.endsAt, timezone: ev.timezone, currency: ev.currency,
+    themeId: ev.themeId, isDemo: ev.isDemo, faq: ev.faq, countdownEnabled: ev.countdownEnabled, countdownUnits: ev.countdownUnits, requiresAccessCode: ev.visibility === 'invite' || (ev.visibility === 'private' && !!ev.accessCodeHash), transfersEnabled: ev.transfersEnabled, refundPolicy: ev.refundPolicy, maxPerOrder: ev.maxPerOrder,
     salesOpenAt: ev.salesOpenAt, salesCloseAt: ev.salesCloseAt, organizer: row.org, posterUrl: ev.posterKey ? await signedUrl(ev.posterKey, 3600) : null,
     gallery: await Promise.all(ev.galleryKeys.map((g) => signedUrl(g, 3600))),
     location: row.loc ? { venue: row.loc.venueName, address: row.loc.address, city: row.loc.city, country: row.loc.country, lat: row.loc.lat, lng: row.loc.lng } : null,
