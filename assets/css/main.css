@@ -29,6 +29,7 @@
   .btn-danger { @apply border border-red-500/50 bg-red-500/10 text-red-300 hover:bg-red-500/20; }
   .input { @apply min-h-[44px] w-full rounded-xl border border-line bg-bg/60 px-3.5 text-[15px] text-fg placeholder:text-muted/70 transition focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30; }
   .label { @apply mb-1.5 block text-sm font-semibold text-fg; }
+  .label:has(+ input[required])::after { content: ' *'; color: #f87171; }
   .hint { @apply mt-1 text-sm text-muted; }
   .chip { @apply inline-flex items-center gap-1.5 rounded-full border border-line bg-surface/60 px-3 py-1 text-xs font-semibold text-muted; }
   .th { @apply px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-muted; }
