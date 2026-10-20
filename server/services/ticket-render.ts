@@ -27,7 +27,8 @@ export async function buildContext(db: Db, ticketId: string): Promise<{ ctx: Tic
   const [loc] = await db.select().from(eventLocations).where(eq(eventLocations.eventId, r.e.id)).limit(1)
   const ctx: TicketContext = {
     eventTitle: r.e.title, holderName: r.t.holderName, category: r.c.name, price: new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(r.t.pricePaid), currency: r.t.currency === 'XOF' ? 'FCFA' : r.t.currency,
-    ticketNumber: r.t.ref, datetime: fmtDate(r.e.startsAt, r.e.timezone), venue: [loc?.venueName, loc?.city].filter(Boolean).join(', '), orderId: r.t.orderId ? `CMD-${r.t.orderId.slice(0, 6).toUpperCase()}` : '—', vip: r.c.vip, accessTerms: r.e.accessTerms, demo: r.t.isDemo
+    ticketNumber: r.t.ref,     datetime: fmtDate(r.e.startsAt, r.e.timezone), startsAt: r.e.startsAt.toISOString(), timezone: r.e.timezone,
+    venue: [loc?.venueName, loc?.city].filter(Boolean).join(', '), orderId: r.t.orderId ? `CMD-${r.t.orderId.slice(0, 6).toUpperCase()}` : '—', vip: r.c.vip, accessTerms: r.e.accessTerms, demo: r.t.isDemo
   }
   return { ctx, layout: await loadLayout(db, r.e.templateId), code: signTicketCode(r.t.id, r.t.qrVersion), ticket: r.t, orderId: r.t.orderId }
 }

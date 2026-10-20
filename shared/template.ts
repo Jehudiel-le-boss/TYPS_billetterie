@@ -6,14 +6,23 @@ export const FIELD_LABELS: Record<FieldKey, string> = {
   ticket_number: 'Numéro de billet', datetime: 'Date et heure', venue: 'Lieu', order_id: 'Identifiant de commande', vip_badge: 'Mention VIP',
   access_terms: "Conditions d'accès", organizer_logo: "Logo de l'organisateur"
 }
-export const PDF_FONTS = ['sans', 'serif', 'mono'] as const
+export const PDF_FONTS = ['sans', 'sans_italic', 'serif', 'serif_italic', 'mono', 'mono_italic'] as const
 export type PdfFont = (typeof PDF_FONTS)[number]
-export const CSS_FONT: Record<PdfFont, string> = { sans: 'Helvetica, Arial, sans-serif', serif: "'Times New Roman', Times, serif", mono: "'Courier New', Courier, monospace" }
+export const CSS_FONT: Record<PdfFont, string> = {
+  sans: 'Helvetica, Arial, sans-serif', sans_italic: 'Helvetica, Arial, sans-serif',
+  serif: "'Times New Roman', Times, serif", serif_italic: "'Times New Roman', Times, serif",
+  mono: "'Courier New', Courier, monospace", mono_italic: "'Courier New', Courier, monospace"
+}
+export const CSS_FONT_STYLE: Record<PdfFont, 'normal' | 'italic'> = {
+  sans: 'normal', sans_italic: 'italic', serif: 'normal', serif_italic: 'italic', mono: 'normal', mono_italic: 'italic'
+}
+export const DATE_FORMATS = ['default', 'long', 'date', 'short', 'time', 'weekday'] as const
+export type TicketDateFormat = (typeof DATE_FORMATS)[number]
 
 export interface BaseEl { id: string; x: number; y: number; w: number; h: number; opacity: number; hidden?: boolean; name?: string }
 export interface TextStyle { fontSize: number; font: PdfFont; bold: boolean; color: string; align: 'left' | 'center' | 'right' }
 export type TplElement =
-  | (BaseEl & { type: 'field'; field: Exclude<FieldKey, 'organizer_logo'> } & TextStyle & { prefix?: string })
+  | (BaseEl & { type: 'field'; field: Exclude<FieldKey, 'organizer_logo'>; dateFormat?: TicketDateFormat } & TextStyle & { prefix?: string })
   | (BaseEl & { type: 'text'; text: string } & TextStyle)
   | (BaseEl & { type: 'qr'; fg: string; bg: string; quiet: boolean })
   | (BaseEl & { type: 'image'; assetId: string; fit: 'contain' | 'cover'; field?: 'organizer_logo' })
@@ -34,9 +43,24 @@ export const PX_TO_PT = 0.75
 
 export interface TicketContext {
   eventTitle: string; holderName: string; category: string; price: string; currency: string; ticketNumber: string
-  datetime: string; venue: string; orderId: string; vip: boolean; accessTerms: string; demo?: boolean
+  datetime: string; venue: string; orderId: string; vip: boolean; accessTerms: string; demo?: boolean; startsAt?: string; timezone?: string
 }
-export function resolveField(field: FieldKey, c: TicketContext): string {
+function formatTicketDate(c: TicketContext, format: TicketDateFormat) {
+  if (!c.startsAt || format === 'default') return c.datetime
+  const date = new Date(c.startsAt)
+  if (Number.isNaN(date.getTime())) return c.datetime
+  const options: Intl.DateTimeFormatOptions = format === 'long'
+    ? { dateStyle: 'full', timeStyle: 'short' }
+    : format === 'date'
+      ? { dateStyle: 'long' }
+      : format === 'short'
+        ? { dateStyle: 'short', timeStyle: 'short' }
+        : format === 'time'
+          ? { timeStyle: 'short' }
+          : { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }
+  return new Intl.DateTimeFormat('fr-FR', { ...options, timeZone: c.timezone || 'Africa/Porto-Novo' }).format(date).replace(',', ' ·')
+}
+export function resolveField(field: FieldKey, c: TicketContext, dateFormat: TicketDateFormat = 'default'): string {
   switch (field) {
     case 'event_title': return c.eventTitle
     case 'holder_name': return c.holderName
@@ -44,7 +68,7 @@ export function resolveField(field: FieldKey, c: TicketContext): string {
     case 'price': return c.price
     case 'currency': return c.currency
     case 'ticket_number': return c.ticketNumber
-    case 'datetime': return c.datetime
+    case 'datetime': return formatTicketDate(c, dateFormat)
     case 'venue': return c.venue
     case 'order_id': return c.orderId
     case 'vip_badge': return c.vip ? 'VIP' : ''
@@ -53,8 +77,9 @@ export function resolveField(field: FieldKey, c: TicketContext): string {
   }
 }
 export const SAMPLE_CONTEXT: TicketContext = {
-  eventTitle: 'Lagune Live Festival', holderName: 'Aïcha Dossou', category: 'VIP', price: '15 000', currency: 'FCFA', ticketNumber: 'TY-7K3M9QXA',
-  datetime: '12 déc. 2026 · 20:00', venue: 'Plage de démonstration, Cotonou', orderId: 'CMD-4F2A91', vip: true, accessTerms: 'Pièce d’identité requise. Billet strictement personnel.', demo: true
+  eventTitle: 'Événement de démonstration', holderName: 'Participant exemple', category: 'Standard', price: '15 000', currency: 'FCFA', ticketNumber: 'TY-7K3M9QXA',
+  datetime: '12 déc. 2026 · 20:00', venue: 'Lieu de démonstration, Cotonou', orderId: 'CMD-4F2A91', vip: false, accessTerms: 'Conditions d’accès de démonstration.', demo: true,
+  startsAt: '2026-12-12T20:00:00+01:00', timezone: 'Africa/Porto-Novo'
 }
 let n = 0
 export const uid = () => `el_${Date.now().toString(36)}_${(n++).toString(36)}`
@@ -83,6 +108,8 @@ export function sanitizeLayout(input: unknown): TemplateLayout {
   const col = (c: unknown, d: string) => (typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c) ? c : d)
   const els = l.elements.map((e) => {
     const base = { ...e, id: String(e.id).slice(0, 40), x: Math.round(e.x), y: Math.round(e.y), w: Math.max(4, Math.round(e.w)), h: Math.max(4, Math.round(e.h)), opacity: Math.min(1, Math.max(0, Number(e.opacity ?? 1))) }
+    if ('font' in base && !PDF_FONTS.includes((base as any).font)) (base as any).font = 'sans'
+    if (base.type === 'field' && !DATE_FORMATS.includes(base.dateFormat ?? 'default')) base.dateFormat = 'default'
     if ('color' in base) (base as any).color = col((base as any).color, '#ffffff')
     if ('text' in base) (base as any).text = String((base as any).text).slice(0, 500)
     if (base.type === 'qr') { (base as any).fg = col((base as any).fg, '#000000'); (base as any).bg = col((base as any).bg, '#ffffff') }

@@ -39,7 +39,7 @@
     "motion-v": "^2.8.0",
     "nuxt": "^3.21.11",
     "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "^5.4.0",
+    "pdfjs-dist": "^6.4.299",
     "pg": "^8.23.1",
     "qrcode": "^1.5.4",
     "sanitize-html": "^2.18.1",
@@ -62,8 +62,11 @@
     "tsx": "^4.20.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.0",
-    "vitest": "^3.2.4",
+    "vitest": "^5.0.5",
     "vue-eslint-parser": "^10.4.1",
     "vue-tsc": "^3.1.0"
+  },
+  "overrides": {
+    "axios": "^1.20.0"
   }
 }

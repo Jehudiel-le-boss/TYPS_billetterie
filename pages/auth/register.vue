@@ -1,7 +1,11 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'auth' }); useSeoMeta({ title: 'Créer un compte', robots: 'noindex' })
-const toast = useToast(); const f = reactive({ fullName: '', email: '', password: '' }); const intent = ref<'attend' | 'organize' | 'agent'>('attend'); const busy = ref(false); const verificationPending = ref(false); const verificationCode = ref('')
-const destination = computed(() => ({ attend: '/events', organize: '/app', agent: '/scan' })[intent.value])
+const route = useRoute(); const toast = useToast(); const f = reactive({ fullName: '', email: '', password: '' }); const intent = ref<'attend' | 'organize' | 'agent'>('attend'); const busy = ref(false); const verificationPending = ref(false); const verificationCode = ref('')
+const nextPath = computed(() => {
+  const next = String(route.query.next ?? '')
+  return next.startsWith('/') && !next.startsWith('//') ? next : ''
+})
+const destination = computed(() => nextPath.value || ({ attend: '/events', organize: '/app', agent: '/scan' })[intent.value])
 async function continueWithIntent() {
   if (intent.value === 'agent') toast.ok('Pour scanner, un organisateur doit d’abord t’inviter sur un événement.')
   await navigateTo(destination.value)
@@ -22,7 +26,9 @@ async function submit() {
   busy.value = true
   try {
     const auth = await useNeonAuth()
-    const result = await auth.adapter.signUp.email({ name: f.fullName, email: f.email, password: f.password, callbackURL: `${window.location.origin}/auth/verify` })
+    const callbackURL = new URL('/auth/verify', window.location.origin)
+    callbackURL.searchParams.set('next', destination.value)
+    const result = await auth.adapter.signUp.email({ name: f.fullName, email: f.email, password: f.password, callbackURL: callbackURL.toString() })
     if (result.error) throw new Error(result.error.message || 'Création du compte impossible')
     if (!result.data?.user?.emailVerified) {
       verificationPending.value = true

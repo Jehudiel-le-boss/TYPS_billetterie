@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { LayoutDashboard, CalendarDays, Palette, Users, Wallet, Settings, ScanLine, ShieldCheck, LogOut, Menu, X, Bell, UserRound } from '@lucide/vue'
+import { LayoutDashboard, CalendarDays, Palette, Users, Wallet, Settings, ScanLine, ShieldCheck, LogOut, Menu, X, Bell, UserRound, Ticket } from '@lucide/vue'
 useHead({ meta: [{ name: 'robots', content: 'noindex, nofollow' }] })
 const me = useMe(); const route = useRoute(); const { orgs, current, select } = useOrg(); const open = ref(false)
 watch(() => route.fullPath, () => { open.value = false })
 const isAdmin = computed(() => route.path.startsWith('/admin'))
 const nav = computed(() => isAdmin.value
   ? [{ to: '/admin', label: 'Vue globale', icon: ShieldCheck }, { to: '/admin/users', label: 'Utilisateurs', icon: Users }, { to: '/admin/events', label: 'Événements', icon: CalendarDays }, { to: '/admin/finance', label: 'Paiements & frais', icon: Wallet }, { to: '/admin/features', label: 'Fonctionnalités', icon: Settings }, { to: '/admin/audit', label: 'Journal d’audit', icon: Settings }]
-  : [{ to: '/app', label: 'Tableau de bord', icon: LayoutDashboard }, { to: '/app/events', label: 'Mes événements', icon: CalendarDays }, { to: '/app/studio', label: 'Studio de billets', icon: Palette }, { to: '/app/team', label: 'Équipe', icon: Users }, { to: '/app/payouts', label: 'Paiements', icon: Wallet }, { to: '/app/notifications', label: 'Notifications', icon: Bell }, { to: '/app/profile', label: 'Mon profil', icon: UserRound }, { to: '/app/settings', label: 'Paramètres', icon: Settings }, { to: '/scan', label: 'Scanner', icon: ScanLine }])
+  : [{ to: '/app', label: 'Tableau de bord', icon: LayoutDashboard }, { to: '/app/orders', label: 'Mes achats', icon: Ticket }, { to: '/app/events', label: 'Mes événements', icon: CalendarDays }, { to: '/app/studio', label: 'Studio de billets', icon: Palette }, { to: '/app/team', label: 'Équipe', icon: Users }, { to: '/app/payouts', label: 'Paiements', icon: Wallet }, { to: '/app/notifications', label: 'Notifications', icon: Bell }, { to: '/app/profile', label: 'Mon profil', icon: UserRound }, { to: '/app/settings', label: 'Paramètres', icon: Settings }, { to: '/scan', label: 'Scanner', icon: ScanLine }])
 const active = (to: string) => (to === '/app' || to === '/admin' ? route.path === to : route.path.startsWith(to))
 </script>
 <template>

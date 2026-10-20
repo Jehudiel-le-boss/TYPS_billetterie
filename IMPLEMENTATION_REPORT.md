@@ -4,7 +4,7 @@
 
 Le cahier des charges initial est conservé dans [`TASK_AUDIT_IMPLEMENTATION.md`](./TASK_AUDIT_IMPLEMENTATION.md), créé avant les changements fonctionnels. Cet audit distingue les fonctionnalités vérifiées, les lacunes constatées et les risques qui demandent encore une validation externe. La liste fournie par l'utilisateur était une liste d'audit, pas une liste de défauts confirmés.
 
-Les améliorations portant sur l'éditeur de billets, l'orientation des utilisateurs, les événements, les descriptions riches et la documentation sont implémentées dans le dépôt. Les changements ont été commités et poussés sur `main`; aucun déploiement n'a été effectué. La migration de base de données est générée, mais n'a pas été appliquée. Aucun secret ni fichier `.env` n'a été consulté ou modifié.
+Les améliorations portant sur l'éditeur de billets, l'orientation des utilisateurs, les événements, les descriptions riches et la documentation sont implémentées dans le dépôt. Le lot initial a été commité et poussé sur `main`. Les mises à jour de dépendances décrites plus loin ont été testées localement, mais ne sont pas poussées. Une sauvegarde PostgreSQL locale a été créée et vérifiée avant d'exécuter `npm run db:migrate`. Le fichier `.env` a été lu à la demande de l'utilisateur; ses secrets n'ont été ni affichés, ni copiés dans le rapport ou transmis.
 
 ## Changements réalisés
 
@@ -13,6 +13,8 @@ Les améliorations portant sur l'éditeur de billets, l'orientation des utilisat
 - Sur téléphone et tablette, les panneaux de l'éditeur participent maintenant au défilement normal de la page au lieu d'être enfermés dans une hauteur liée à la fenêtre; le défilement interne est réservé au grand écran.
 - Le contrôle de publication explique le seuil de contraste QR requis (4:1) et exige des modules plus sombres que leur fond. Le bouton de correction remet le QR en noir sur blanc. Le contrôle client est aligné sur la règle serveur et empêche une publication impossible avant la requête.
 - Les messages de validation distinguent maintenant le contraste QR de l'accessibilité générale des textes.
+- L'éditeur permet aussi de faire glisser les champs dynamiques sur le billet (et de les déposer après un appui long sur téléphone), d'annuler/rétablir visiblement les changements, de choisir parmi six variantes de polices PDF intégrées et de régler le format de date. Les données fictives de prévisualisation sont modifiables sans altérer les données réelles des billets.
+- L'aperçu PDF enregistre d'abord le modèle, reprend les données d'aperçu éditées et retourne une erreur visible si l'aperçu est interdit ou échoue. L'import d'image/PDF applique la limite serveur réelle de 6 Mo et signale l'échec de conversion. Le test PDF en lecture seule est accessible aux membres ayant le droit de lire l'événement.
 
 ### Parcours et rôles
 
@@ -20,6 +22,7 @@ Les améliorations portant sur l'éditeur de billets, l'orientation des utilisat
 - Un guide de démarrage apparaît une première fois dans le navigateur et peut être rouvert. Il explique que l'achat, l'appartenance à plusieurs organisations et l'affectation à plusieurs événements peuvent coexister.
 - Dans l'équipe d'une organisation, le rôle d'un membre non-propriétaire peut être modifié sans le supprimer puis le réinviter. Les permissions effectives restent vérifiées côté serveur.
 - Les rôles d'organisation restent singuliers par organisation. Les autorisations de vente et de scan par événement se règlent dans l'équipe de l'événement.
+- L'achat en ligne reste possible sans compte. Après paiement, le client peut créer un compte ou se connecter; un espace « Mes achats » regroupe les commandes en ligne faites avec la même adresse e-mail vérifiée. L'accès à la liste et aux commandes est contrôlé côté serveur; le lien sécurisé de commande reste disponible pour les achats sans compte.
 
 ### Événements
 
@@ -57,23 +60,31 @@ Les observations ci-dessous proviennent de la lecture du code et des documents d
 
 Une migration additive `0003_equal_whistler.sql` ajoute la FAQ et les options de compte à rebours. Elle est référencée dans le journal Drizzle et la documentation du schéma.
 
-**Migration non appliquée.** La commande du projet (`npm run db:migrate`) exige `DATABASE_URL_UNPOOLED` ou `DATABASE_URL`, absente de l'environnement de cette session. Le fichier `.env` n'a pas été ouvert ni chargé, conformément à la consigne de ne pas y accéder. La cible Neon n'a donc pas pu être déterminée sans risque d'appliquer le schéma à la mauvaise base.
+**Migration vérifiée et commande exécutée.** Un dump PostgreSQL direct au format custom compressé a été écrit hors du dépôt dans `D:\Programmation 2.0\TYPS\database-backups\typs-neondb-2026-10-20T09-38-09-713Z.dump`. `pg_restore --list` a lu son catalogue (86 entrées) et `pg_restore --file=NUL` a décompressé l'ensemble sans erreur. SHA-256 : `f820cda1581951105f4ff19aa24fef52e85858648ac982f74cd3c31641d0dad2`. Les permissions NTFS du dossier et du dump ont été restreintes à l'utilisateur courant, Administrateurs et SYSTEM. **Le dump n'est pas chiffré** et sa restauration complète sur une base isolée n'a pas été testée.
 
-Avant d'utiliser les nouvelles colonnes en production, définis toi-même la variable `DATABASE_URL_UNPOOLED` (ou `DATABASE_URL`) dans un terminal sécurisé pointant vers la base correcte, vérifie la sauvegarde, puis lance `npm run db:migrate`. Ne partage pas cette URL. La migration ajoute uniquement les trois colonnes FAQ/compte à rebours.
+La vérification préalable a constaté que le journal Drizzle comportait déjà les quatre entrées de migration, jusqu'à `0003`, et que `events.faq`, `events.countdown_enabled` et `events.countdown_units` existaient déjà. `npm run db:migrate` a terminé avec succès; aucune modification de schéma supplémentaire n'était en attente. La vérification après exécution confirme toujours les quatre migrations et les trois colonnes. La migration 0003 était donc déjà appliquée avant cet appel.
+
+La configuration Vercel du dépôt lance `npm run db:migrate` au début du build. Un dump logique vérifié est disponible, mais aucune restauration sur une seconde instance Neon n'a été testée; conserver ce fichier dans un emplacement sûr et tester une restauration isolée selon la procédure de reprise.
+
+**Déploiement non effectué.** Le CLI Vercel disponible est connecté à `Jehudiel270` et ne voit pas le projet TYPS ni un environnement de préproduction; aucune liaison `.vercel` locale n'existe. Le domaine public `https://typs-ashy.vercel.app` répond, mais `/api/health` retourne `ready: false` avec le bloqueur `secrets`. Le site n'a pas été redéployé et aucun parcours de création/affichage d'événement n'a été testé en ligne.
+
+Pour poursuivre sans exposer de secrets : fournir au CLI un compte Vercel qui a accès au projet TYPS et à un environnement de préproduction. Le schéma est déjà à jour sur la base reliée par la configuration locale; le déploiement et les essais d'événement restent à effectuer.
 
 ## Validation et limites
 
-- La commande complète `npm run check` (typecheck, ESLint, tests Vitest et build Nuxt) a réussi : **10 fichiers de test, 71 tests passés**, build client et serveur terminé.
+- Après mise à jour de PDF.js, Axios et Vitest vers 5.0.5, `npm run check` a réussi : typecheck, ESLint, **10 fichiers de test / 71 tests** et build Nuxt client/serveur.
 - `git diff --check` a été exécuté; il n'a signalé aucun défaut d'espacement (Git a émis uniquement des avertissements de conversion LF/CRLF).
 - Aucun test visuel dans un navigateur ni sur un déploiement n'a été exécuté. Les règles globales de scrollbar personnalisée existaient déjà et utilisent les couleurs d'accent et de fond du thème.
-- Aucun fournisseur, e-mail, caméra ou paiement réel n'a été sollicité; le comportement réel doit être testé sur un environnement de préproduction.
-- L'audit npm de production (`npm audit --omit=dev`) signale **18 vulnérabilités transitives : 15 élevées et 3 modérées**, notamment dans les dépendances FedaPay/Axios, Nuxt/listhen, Tailwind et PDF.js. Ces alertes n'ont pas été corrigées ici : certaines n'ont pas de correctif disponible ou imposeraient une mise à niveau majeure. Elles doivent être triées et planifiées séparément.
-- Le code a été poussé sur `main`; le déploiement et l'application de la migration restent à faire.
+- Aucun fournisseur de paiement, e-mail ou caméra n'a été sollicité; le comportement réel doit être testé sur un environnement de préproduction.
+- Corrections de dépendances appliquées localement : Axios 1.20.0 forcé pour FedaPay, PDF.js 6.4.299 et Vitest 5.0.5; la commande `npm audit fix` a aussi rafraîchi les dépendances compatibles du lockfile. Cela supprime les alertes Axios/FedaPay, PDF.js et les alertes critiques de Vitest.
+- Le dernier audit (`npm audit --omit=dev`) signale **15 vulnérabilités de production restantes (12 élevées, 3 modérées)**. L'audit complet en compte **19 (12 élevées, 7 modérées, aucune critique)**. Les alertes non résolues touchent principalement Nuxt/Nitro, Tailwind 3, les outils PostCSS et Drizzle Kit.
+- Pas de `npm audit fix --force` : npm propose notamment de rétrograder Nuxt à 3.15.1 et Drizzle Kit à 0.18.1, ce qui serait une modification majeure/régressive non validée. Certaines alertes n'ont pas de correctif annoncé; la résolution complète requiert un chantier de mise à niveau/migration suivi de tests.
+- Le lot initial est poussé sur `main`; les mises à jour npm décrites ici ne le sont pas. La sauvegarde a été créée et vérifiée, et la migration a été exécutée sans changement en attente. Le déploiement reste bloqué par l'accès au projet Vercel et le statut santé public qui signale `secrets`.
 
 ## Suite recommandée
 
-1. Relire et appliquer la migration sur une base de préproduction.
+1. Vérifier le statut des secrets requis dans Vercel avec le propriétaire du projet, puis déployer les mises à jour locales après revue et tests.
 2. Tester la création, l'édition et la page publique d'un événement sur mobile, tablette et bureau.
 3. Effectuer des essais FedaPay sandbox, de scan en ligne/hors ligne et de remboursement avec les configurations réelles.
-4. Examiner séparément les vulnérabilités npm et planifier des mises à niveau sans utiliser de correction forcée non contrôlée.
+4. Examiner les vulnérabilités npm restantes et planifier les mises à niveau majeures sans correction forcée non contrôlée.
 5. Compléter les textes légaux et faire valider les obligations de confidentialité par un conseil compétent.

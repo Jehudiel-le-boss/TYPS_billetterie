@@ -1,10 +1,10 @@
 <script setup lang="ts">
 // Rendu HTML d'un gabarit de billet (même JSON que le moteur PDF). Pur : aucune interaction.
-import { CSS_FONT, resolveField, type TemplateLayout, type TicketContext, type TplElement } from '~~/shared/template'
+import { CSS_FONT, CSS_FONT_STYLE, resolveField, type TemplateLayout, type TicketContext, type TplElement } from '~~/shared/template'
 const props = defineProps<{ layout: TemplateLayout; ctx: TicketContext; qr: Record<string, string>; assets?: Record<string, string> }>()
 const box = (el: TplElement) => ({ position: 'absolute' as const, left: el.x + 'px', top: el.y + 'px', width: el.w + 'px', height: el.h + 'px', opacity: el.opacity })
-const textOf = (el: TplElement) => (el.type === 'text' ? el.text : el.type === 'field' ? (el.prefix ?? '') + resolveField(el.field, props.ctx) : '')
-const tstyle = (el: any) => ({ ...box(el), color: el.color, fontSize: el.fontSize + 'px', lineHeight: el.fontSize * 1.2 + 'px', fontFamily: CSS_FONT[el.font as keyof typeof CSS_FONT], fontWeight: el.bold ? 700 : 400, textAlign: el.align, overflow: 'hidden' })
+const textOf = (el: TplElement) => (el.type === 'text' ? el.text : el.type === 'field' ? (el.prefix ?? '') + resolveField(el.field, props.ctx, el.dateFormat) : '')
+const tstyle = (el: any) => ({ ...box(el), color: el.color, fontSize: el.fontSize + 'px', lineHeight: el.fontSize * 1.2 + 'px', fontFamily: CSS_FONT[el.font as keyof typeof CSS_FONT], fontStyle: CSS_FONT_STYLE[el.font as keyof typeof CSS_FONT_STYLE], fontWeight: el.bold ? 700 : 400, textAlign: el.align, overflow: 'hidden' })
 const sstyle = (el: any) => ({ ...box(el), background: el.fill, border: el.strokeWidth ? `${el.strokeWidth}px solid ${el.stroke}` : 'none', borderRadius: el.shape === 'ellipse' ? '50%' : el.radius + 'px', boxSizing: 'border-box' as const })
 </script>
 <template>

@@ -4,7 +4,14 @@ import { PX_TO_PT, resolveField, type PdfFont, type TemplateLayout, type TicketC
 import { qrPng } from '../utils/qr'
 
 const hex = (h: string) => { const n = h.replace('#', ''); return rgb(parseInt(n.slice(0, 2), 16) / 255, parseInt(n.slice(2, 4), 16) / 255, parseInt(n.slice(4, 6), 16) / 255) }
-const FONT_MAP: Record<PdfFont, [StandardFonts, StandardFonts]> = { sans: [StandardFonts.Helvetica, StandardFonts.HelveticaBold], serif: [StandardFonts.TimesRoman, StandardFonts.TimesRomanBold], mono: [StandardFonts.Courier, StandardFonts.CourierBold] }
+const FONT_MAP: Record<PdfFont, [StandardFonts, StandardFonts]> = {
+  sans: [StandardFonts.Helvetica, StandardFonts.HelveticaBold],
+  sans_italic: [StandardFonts.HelveticaOblique, StandardFonts.HelveticaBoldOblique],
+  serif: [StandardFonts.TimesRoman, StandardFonts.TimesRomanBold],
+  serif_italic: [StandardFonts.TimesRomanItalic, StandardFonts.TimesRomanBoldItalic],
+  mono: [StandardFonts.Courier, StandardFonts.CourierBold],
+  mono_italic: [StandardFonts.CourierOblique, StandardFonts.CourierBoldOblique]
+}
 export type AssetLoader = (assetId: string) => Promise<{ bytes: Buffer; mime: string } | null>
 
 function clean(font: PDFFont, s: string): string {
@@ -55,7 +62,7 @@ async function drawElement(doc: PDFDocument, page: PDFPage, el: TplElement, ctx:
     const img = await embedImage(doc, a); const r = el.fit === 'cover' ? Math.max(w / img.width, h / img.height) : Math.min(w / img.width, h / img.height)
     page.drawImage(img, { x: x + (w - img.width * r) / 2, y: y + (h - img.height * r) / 2, width: img.width * r, height: img.height * r, opacity: el.opacity })
   } else {
-    const raw = el.type === 'text' ? el.text : (el.prefix ?? '') + resolveField(el.field, ctx); if (!raw) return
+    const raw = el.type === 'text' ? el.text : (el.prefix ?? '') + resolveField(el.field, ctx, el.dateFormat); if (!raw) return
     const font = await getFont(el.font, el.bold), size = el.fontSize * PX_TO_PT, lh = size * 1.2
     const lines = wrap(font, clean(font, raw), size, w).slice(0, Math.max(1, Math.floor(h / lh)))
     lines.forEach((ln, i) => {
