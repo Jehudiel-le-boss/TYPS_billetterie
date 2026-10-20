@@ -23,8 +23,18 @@ export async function syncNeonSession() {
   return me
 }
 
-export async function resendNeonVerificationEmail(email: string, callbackURL: string) {
+export async function sendNeonVerificationOtp(email: string) {
   const auth = await useNeonAuth()
-  const result = await auth.adapter.sendVerificationEmail({ email, callbackURL })
-  if (result.error) throw new Error(result.error.message || 'Impossible de renvoyer le lien de vérification')
+  const result = await auth.adapter.emailOtp.sendVerificationOtp({
+    email,
+    type: 'email-verification',
+  })
+  if (result.error) throw new Error(result.error.message || 'Impossible de renvoyer le code de vérification')
+}
+
+export async function verifyNeonEmailOtp(email: string, otp: string) {
+  const auth = await useNeonAuth()
+  const result = await auth.adapter.emailOtp.verifyEmail({ email, otp })
+  if (result.error) throw new Error(result.error.message || 'Code de vérification invalide ou expiré')
+  if (!result.data.status) throw new Error('Le code de vérification n’a pas été accepté')
 }

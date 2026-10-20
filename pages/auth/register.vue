@@ -1,6 +1,6 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'auth' }); useSeoMeta({ title: 'Créer un compte', robots: 'noindex' })
-const toast = useToast(); const f = reactive({ fullName: '', email: '', password: '' }); const busy = ref(false); const verificationPending = ref(false)
+const toast = useToast(); const f = reactive({ fullName: '', email: '', password: '' }); const busy = ref(false); const verificationPending = ref(false); const verificationCode = ref('')
 async function signUpGoogle() {
   busy.value = true
   try {
@@ -29,8 +29,21 @@ async function submit() {
 async function resendVerification() {
   busy.value = true
   try {
-    await resendNeonVerificationEmail(f.email, `${window.location.origin}/auth/verify`)
-    toast.ok('Demande de vérification acceptée. Si le compte existe et que l’envoi est actif dans Neon Auth, un nouveau message sera envoyé. Vérifie aussi les spams.')
+    await sendNeonVerificationOtp(f.email)
+    toast.ok('Un nouveau code a été demandé. Vérifie ta boîte de réception et les spams.')
+  } catch (error) { toast.err(errMsg(error)) }
+  finally { busy.value = false }
+}
+async function verifyEmail() {
+  busy.value = true
+  try {
+    await verifyNeonEmailOtp(f.email, verificationCode.value.trim())
+    const auth = await useNeonAuth()
+    const result = await auth.adapter.signIn.email({ email: f.email, password: f.password })
+    if (result.error) throw new Error(result.error.message || 'Adresse vérifiée, mais la connexion a échoué. Connecte-toi avec ton mot de passe.')
+    await syncNeonSession()
+    toast.ok('Adresse e-mail vérifiée. Bienvenue sur TYPS !')
+    await navigateTo('/app')
   } catch (error) { toast.err(errMsg(error)) }
   finally { busy.value = false }
 }
@@ -38,8 +51,12 @@ async function resendVerification() {
 <template>
   <h1 class="text-2xl font-black">Créer mon compte</h1><p class="mt-1 text-sm text-muted">Gratuit. Tu pourras créer ton organisation juste après.</p>
   <div v-if="verificationPending" class="mt-6 space-y-4 rounded-xl border border-amber-400/40 bg-amber-400/10 p-4 text-sm" role="status">
-    <p>Le compte a été créé pour <strong>{{ f.email }}</strong>, mais Neon Auth ne le signale pas encore comme vérifié. Consulte ta boîte de réception et les spams. Si aucun message n’arrive, vérifie que l’envoi d’e-mails de vérification est activé et configuré dans Neon Auth.</p>
-    <button type="button" class="btn btn-ghost w-full" :disabled="busy || !f.email" @click="resendVerification">{{ busy ? 'Envoi…' : 'Renvoyer le lien de vérification' }}</button>
+    <p>Un code à 6 chiffres a été envoyé à <strong>{{ f.email }}</strong>. Saisis-le ci-dessous avant son expiration dans 10 minutes.</p>
+    <form class="space-y-3" @submit.prevent="verifyEmail">
+      <label class="block"><span class="label">Code reçu par e-mail</span><input v-model="verificationCode" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" minlength="6" required class="input text-center text-xl tracking-[0.4em]" aria-label="Code de vérification à 6 chiffres"></label>
+      <button type="submit" class="btn btn-primary w-full" :disabled="busy">{{ busy ? 'Vérification…' : 'Vérifier mon adresse' }}</button>
+    </form>
+    <button type="button" class="btn btn-ghost w-full" :disabled="busy || !f.email" @click="resendVerification">{{ busy ? 'Envoi…' : 'Renvoyer un code' }}</button>
     <NuxtLink to="/auth/login" class="block text-center text-accent underline">J’ai déjà confirmé mon adresse : me connecter</NuxtLink>
   </div>
   <template v-else>
