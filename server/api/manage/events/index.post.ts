@@ -36,13 +36,20 @@ export default api(async (e) => {
   } catch (error) {
     if (error instanceof HttpError) throw error
     const code = databaseErrorCode(error)
-    console.error('[event.create] Operation failed', { code: code ?? 'unknown' })
+    const reference = `EVT-${randomCode(6).toUpperCase()}`
+    console.error('[event.create] Operation failed', { reference, code: code ?? 'unknown' })
     if (code === '42703' || code === '42P01') {
-      throw new HttpError(503, 'La base de données doit être mise à jour avant de créer des événements. L’administrateur doit exécuter « npm run db:migrate », puis redéployer le serveur.', 'database_migration_required')
+      throw new HttpError(503, `La base de données doit être mise à jour avant de créer des événements. L’administrateur doit exécuter « npm run db:migrate », puis redéployer le serveur. Référence : ${reference}.`, 'database_migration_required')
     }
     if (code?.startsWith('08') || code === '57P01') {
-      throw new HttpError(503, 'La base de données est momentanément injoignable. Aucun brouillon n’a été confirmé; réessaie dans quelques instants.', 'database_unavailable')
+      throw new HttpError(503, `La base de données est momentanément injoignable. Aucun brouillon n’a été confirmé; réessaie dans quelques instants. Référence : ${reference}.`, 'database_unavailable')
     }
-    throw new HttpError(500, 'Le brouillon n’a pas pu être enregistré. Aucun événement n’a été créé. Réessaie; si le problème persiste, contacte l’assistance avec l’heure de l’erreur.', 'event_creation_failed')
+    if (code === '23505') {
+      throw new HttpError(409, `Un événement portant une référence identique est en cours de création. Réessaie; aucun doublon n’a été confirmé. Référence : ${reference}.`, 'event_conflict')
+    }
+    if (code === '23503') {
+      throw new HttpError(409, `L’organisation ou une donnée liée n’est plus disponible. Recharge la page, vérifie l’organisation sélectionnée puis réessaie. Référence : ${reference}.`, 'event_related_data_missing')
+    }
+    throw new HttpError(500, `Le brouillon n’a pas pu être enregistré. Aucun événement n’a été confirmé. Réessaie; si le problème persiste, transmets la référence ${reference} à l’assistance.`, 'event_creation_failed')
   }
 })

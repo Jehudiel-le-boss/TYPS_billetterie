@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { LayoutDashboard, CalendarDays, Palette, Users, Wallet, Settings, ScanLine, ShieldCheck, LogOut, Menu, X, Bell, UserRound, Ticket } from '@lucide/vue'
 useHead({ meta: [{ name: 'robots', content: 'noindex, nofollow' }] })
-const me = useMe(); const route = useRoute(); const { orgs, current, select } = useOrg(); const open = ref(false)
+const me = useMe(); const route = useRoute(); const open = ref(false)
 watch(() => route.fullPath, () => { open.value = false })
 const isAdmin = computed(() => route.path.startsWith('/admin'))
 const nav = computed(() => isAdmin.value
@@ -17,7 +17,7 @@ const active = (to: string) => (to === '/app' || to === '/admin' ? route.path ==
     <aside id="dashboard-navigation" class="fixed inset-y-0 left-0 z-50 w-[min(88vw,20rem)] border-r border-line bg-surface shadow-2xl xl:sticky xl:top-0 xl:z-auto xl:h-dvh xl:w-auto xl:border-r" :class="open ? 'block' : 'hidden xl:block'" aria-label="Navigation de l’espace">
       <div class="flex h-full flex-col gap-4 overflow-y-auto p-4">
         <NuxtLink to="/" class="hidden xl:block"><LogoMark /></NuxtLink>
-        <div v-if="!isAdmin && orgs.length"><label class="label" for="orgsel">Organisation</label><select id="orgsel" class="input" :value="current?.id" @change="select(($event.target as HTMLSelectElement).value)"><option v-for="o in orgs" :key="o.id" :value="o.id">{{ o.name }}</option></select></div>
+        <OrgSwitcher v-if="!isAdmin" />
         <nav class="flex flex-1 flex-col gap-1"><NuxtLink v-for="n in nav" :key="n.to" :to="n.to" :data-guide="n.guide" class="flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-sm font-semibold transition" :class="active(n.to) ? 'bg-accent/15 text-accent' : 'text-muted hover:bg-line/40 hover:text-fg'"><component :is="n.icon" :size="18" />{{ n.label }}</NuxtLink>
           <NuxtLink v-if="me.user?.platformRole === 'admin' && !isAdmin" to="/admin" class="mt-2 flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-sm font-semibold text-muted hover:bg-line/40"><ShieldCheck :size="18" />Administration TYPS</NuxtLink>
           <NuxtLink v-if="isAdmin" to="/app" class="mt-2 flex min-h-[44px] items-center gap-3 rounded-xl px-3 text-sm font-semibold text-muted hover:bg-line/40"><LayoutDashboard :size="18" />Espace organisateur</NuxtLink>

@@ -19,6 +19,7 @@ Les améliorations portant sur l'éditeur de billets, l'orientation des utilisat
 ### Parcours et rôles
 
 - L'inscription propose un parcours initial : acheter, organiser ou scanner. Ce choix ne confère aucune permission; il dirige vers la bonne destination. Un agent doit toujours être invité et autorisé par un organisateur.
+- L’espace organisateur permet de basculer entre toutes les organisations de l’utilisateur et d’en créer plusieurs depuis le sélecteur de la barre latérale; rejoindre une organisation existante reste soumis à son invitation.
 - Un guide de démarrage apparaît une première fois dans le navigateur et peut être rouvert. Il explique que l'achat, l'appartenance à plusieurs organisations et l'affectation à plusieurs événements peuvent coexister.
 - Dans l'équipe d'une organisation, le rôle d'un membre non-propriétaire peut être modifié sans le supprimer puis le réinviter. Les permissions effectives restent vérifiées côté serveur.
 - Les rôles d'organisation restent singuliers par organisation. Les autorisations de vente et de scan par événement se règlent dans l'équipe de l'événement.
@@ -27,7 +28,8 @@ Les améliorations portant sur l'éditeur de billets, l'orientation des utilisat
 ### Événements
 
 - Le formulaire de création permet de renseigner début et fin avec l'heure, le lieu, l'adresse, la ville et des coordonnées facultatives; l'édition existante a été alignée.
-- Le lieu peut être recherché dans Google Maps. La page publique propose Google Maps et, lorsque les coordonnées sont connues, OpenStreetMap.
+- Le choix de catégorie et de visibilité à la création utilise des boutons sélectionnables avec état actif clair. L'organisateur peut ouvrir Google Maps puis coller un lien avec coordonnées, ou saisir latitude/longitude; le formulaire extrait les positions courantes des URL Google Maps et explique quand le lien ne contient pas de coordonnées.
+- La création enregistre événement, emplacement et journal d'audit dans une même transaction. Les échecs serveur ont des messages contextualisés et une référence de diagnostic; les erreurs HTTP sans message n'apparaissent plus comme une erreur réseau générique. La page publique propose Google Maps et, lorsque les coordonnées sont connues, OpenStreetMap.
 - Les organisateurs peuvent ajouter jusqu'à 20 questions/réponses de FAQ.
 - Le compte à rebours public peut être désactivé et ses unités (jours, heures, minutes, secondes) choisies. Les valeurs restent cohérentes même lorsque des unités intermédiaires sont masquées; il disparaît lorsque l'événement a commencé.
 - L'affiche PNG/JPG pouvait déjà être ajoutée depuis la gestion de l'événement sans retirer son thème. Cette fonctionnalité a été conservée; l'affiche est également affichée sur la page publique. Elle s'ajoute au brouillon après sa création.

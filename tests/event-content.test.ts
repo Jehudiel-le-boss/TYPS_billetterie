@@ -3,6 +3,7 @@ import { qrContrastOk } from '../composables/useQrPreview'
 import { sanitizeEventDescription } from '../server/utils/rich-content'
 import { htmlToPlainText, isRichTextEmpty, toEditorHtml } from '../shared/rich-text'
 import { getCountdownValues } from '../shared/countdown'
+import { parseMapCoordinates } from '../shared/map-location'
 import { eventCreateSchema, richDescriptionSchema } from '../shared/validation'
 
 describe('contenu des événements', () => {
@@ -82,6 +83,14 @@ describe('contenu des événements', () => {
     expect(getCountdownValues(totalSeconds, ['days', 'seconds'])).toMatchObject({ days: 1, seconds: 7_384 })
     expect(getCountdownValues(totalSeconds, ['days', 'hours', 'seconds'])).toMatchObject({ days: 1, hours: 2, seconds: 184 })
     expect(getCountdownValues(totalSeconds, ['days', 'minutes'])).toMatchObject({ days: 1, minutes: 123 })
+  })
+
+  it('lit une position à partir de coordonnées ou de liens Google Maps', () => {
+    expect(parseMapCoordinates('6.3703, 2.3912')).toEqual({ lat: 6.3703, lng: 2.3912 })
+    expect(parseMapCoordinates('https://www.google.com/maps/@6.3703,2.3912,15z')).toEqual({ lat: 6.3703, lng: 2.3912 })
+    expect(parseMapCoordinates('https://www.google.com/maps/place/X/data=!3m1!4b1!4m2!3m1!1s0x!3m1!1s0x!8m2!3d6.3703!4d2.3912')).toEqual({ lat: 6.3703, lng: 2.3912 })
+    expect(parseMapCoordinates('91, 2')).toBeNull()
+    expect(parseMapCoordinates('lien sans coordonnées')).toBeNull()
   })
 
   it('n’accepte que les couleurs QR suffisamment contrastées et plus sombres au premier plan', () => {
