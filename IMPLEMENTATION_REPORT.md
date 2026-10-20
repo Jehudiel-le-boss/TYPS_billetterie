@@ -4,7 +4,7 @@
 
 Le cahier des charges initial est conservé dans [`TASK_AUDIT_IMPLEMENTATION.md`](./TASK_AUDIT_IMPLEMENTATION.md), créé avant les changements fonctionnels. Cet audit distingue les fonctionnalités vérifiées, les lacunes constatées et les risques qui demandent encore une validation externe. La liste fournie par l'utilisateur était une liste d'audit, pas une liste de défauts confirmés.
 
-Les améliorations portant sur l'éditeur de billets, l'orientation des utilisateurs, les événements, les descriptions riches et la documentation sont implémentées dans le dépôt. La migration de base de données est générée, mais n'a pas été appliquée. Aucun secret ni fichier `.env` n'a été consulté ou modifié. Aucun commit, push ou déploiement n'a été effectué.
+Les améliorations portant sur l'éditeur de billets, l'orientation des utilisateurs, les événements, les descriptions riches et la documentation sont implémentées dans le dépôt. Les changements ont été commités et poussés sur `main`; aucun déploiement n'a été effectué. La migration de base de données est générée, mais n'a pas été appliquée. Aucun secret ni fichier `.env` n'a été consulté ou modifié.
 
 ## Changements réalisés
 
@@ -68,7 +68,7 @@ Avant d'utiliser les nouvelles colonnes en production, définis toi-même la var
 - Aucun test visuel dans un navigateur ni sur un déploiement n'a été exécuté. Les règles globales de scrollbar personnalisée existaient déjà et utilisent les couleurs d'accent et de fond du thème.
 - Aucun fournisseur, e-mail, caméra ou paiement réel n'a été sollicité; le comportement réel doit être testé sur un environnement de préproduction.
 - L'audit npm de production (`npm audit --omit=dev`) signale **18 vulnérabilités transitives : 15 élevées et 3 modérées**, notamment dans les dépendances FedaPay/Axios, Nuxt/listhen, Tailwind et PDF.js. Ces alertes n'ont pas été corrigées ici : certaines n'ont pas de correctif disponible ou imposeraient une mise à niveau majeure. Elles doivent être triées et planifiées séparément.
-- Aucun commit, push ou déploiement n'a été effectué.
+- Le code a été poussé sur `main`; le déploiement et l'application de la migration restent à faire.
 
 ## Suite recommandée
 
