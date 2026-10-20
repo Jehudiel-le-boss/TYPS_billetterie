@@ -17,6 +17,7 @@ const helpButton = ref<HTMLButtonElement | null>(null)
 const placement = ref<'top' | 'bottom'>('bottom')
 let resizeObserver: ResizeObserver | null = null
 let startedWelcome = false
+let targetUpdateId = 0
 let activeRole: GuideRole = 'attend'
 
 const roleNames: Record<GuideRole, string> = { attend: 'Acheteur', organize: 'Organisateur', agent: 'Agent' }
@@ -45,7 +46,7 @@ const spotlightStyle = computed(() => targetRect.value ? {
 } : null)
 
 const discoverySteps: GuideStep[] = [
-  { eyebrow: 'Bienvenue sur TYPS', title: 'La billetterie, simplement.', body: 'Un petit tour facultatif pour repérer les principales actions. Tu peux le passer à tout moment et continuer à utiliser le site.' },
+  { eyebrow: 'Bienvenue sur TYPS', title: 'La billetterie, simplement.', body: 'Un petit tour pour repérer les principales actions. Tu peux le passer à tout moment et continuer à utiliser le site.' },
   { eyebrow: 'Découvrir', title: 'Trouve ton prochain événement.', body: 'Explore les événements, compare les dates, les lieux et les tarifs. Tu peux acheter sans créer de compte.', target: '[data-guide="header-explore"], [data-guide="home-explore"]' },
   { eyebrow: 'Acheter', title: 'Ton billet reste facile à retrouver.', body: 'Après le paiement confirmé, le billet et son QR sont accessibles depuis le lien sécurisé de commande. Avec un compte vérifié utilisant la même adresse, retrouve aussi tes achats dans « Mes achats ».', target: '[data-guide="home-buyer"]' },
   { eyebrow: 'Organiser', title: 'Lance ta billetterie.', body: 'Crée une organisation, prépare un événement, ses catégories et ses billets. Tu gardes le contrôle avant de publier.', target: '[data-guide="home-organizer"]' },
@@ -88,7 +89,24 @@ function resolveTarget(selector?: string) {
   return null
 }
 
+async function waitForTargetToSettle(element: HTMLElement) {
+  let previous: number[] | null = null
+  let stableFrames = 0
+  const deadline = performance.now() + 2200
+
+  while (stableFrames < 8 && performance.now() < deadline) {
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    const rect = element.getBoundingClientRect()
+    const current = [window.scrollX, window.scrollY, rect.left, rect.top, rect.width, rect.height]
+    stableFrames = previous && current.every((value, index) => Math.abs(value - previous![index]) < 0.5)
+      ? stableFrames + 1
+      : 0
+    previous = current
+  }
+}
+
 async function updateTarget() {
+  const updateId = ++targetUpdateId
   await nextTick()
   const element = resolveTarget(currentStep.value?.target)
   if (!element) {
@@ -96,7 +114,8 @@ async function updateTarget() {
     return
   }
   element.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
-  await new Promise((resolve) => setTimeout(resolve, 260))
+  await waitForTargetToSettle(element)
+  if (updateId !== targetUpdateId) return
   const rect = element.getBoundingClientRect()
   targetRect.value = rect
   const cardHeight = card.value?.offsetHeight ?? 300
@@ -110,6 +129,7 @@ async function updateTarget() {
 }
 
 function finish() {
+  targetUpdateId++
   const userId = me.value.user?.id ?? 'guest'
   localStorage.setItem('typs-guide-discovery-v1', 'seen')
   localStorage.setItem(`typs-guide-role:${userId}:${activeRole}`, 'seen')
