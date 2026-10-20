@@ -51,6 +51,31 @@ describe('contenu des événements', () => {
     expect(eventCreateSchema.safeParse({ ...base, countdownEnabled: true, countdownUnits: [] }).success).toBe(false)
   })
 
+  it('retourne des messages précis pour les champs obligatoires et les FAQ incomplètes', () => {
+    const base = {
+      organizationId: '00000000-0000-4000-8000-000000000000',
+      startsAt: '2026-11-01T10:00:00.000Z',
+      capacity: 100
+    }
+    const missingTitle = eventCreateSchema.safeParse(base)
+    expect(missingTitle.success).toBe(false)
+    if (!missingTitle.success) {
+      expect(missingTitle.error.issues.find((issue) => issue.path[0] === 'title')?.message)
+        .toBe('Le titre de l’événement est obligatoire.')
+    }
+
+    const incompleteFaq = eventCreateSchema.safeParse({
+      ...base,
+      title: 'Événement TYPS',
+      faq: [{ question: 'À quelle heure ouvrent les portes ?', answer: '' }]
+    })
+    expect(incompleteFaq.success).toBe(false)
+    if (!incompleteFaq.success) {
+      expect(incompleteFaq.error.issues.find((issue) => issue.path[0] === 'faq')?.message)
+        .toBe('La réponse ne peut pas être vide.')
+    }
+  })
+
   it('calcule des valeurs cohérentes quand des unités intermédiaires sont masquées', () => {
     const totalSeconds = 93_784
     expect(getCountdownValues(totalSeconds, ['seconds']).seconds).toBe(totalSeconds)

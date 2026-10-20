@@ -7,21 +7,39 @@ export const registerSchema = z.object({ email: emailSchema, password: passwordS
 export const loginSchema = z.object({ email: emailSchema, password: z.string().min(1).max(200) })
 export const slugSchema = z.string().trim().toLowerCase().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/).min(3).max(60)
 export const eventCreateSchema = z.object({
-  organizationId: z.string().uuid(),
-  title: z.string().trim().min(3).max(140),
+  organizationId: z.string().uuid('Choisis une organisation valide.'),
+  title: z.string({ error: 'Le titre de l’événement est obligatoire.' }).trim()
+    .min(3, 'Le titre doit contenir au moins 3 caractères.')
+    .max(140, 'Le titre ne peut pas dépasser 140 caractères.'),
   description: richDescriptionSchema.default(''),
   category: z.string().trim().max(40).default('soirée'),
   visibility: z.enum(['public', 'private', 'invite']).default('public'),
-  startsAt: z.coerce.date(), endsAt: z.coerce.date().optional(),
-  faq: z.array(z.object({ question: z.string().trim().min(3).max(160), answer: z.string().trim().min(1).max(2000) })).max(20).default([]),
+  startsAt: z.coerce.date({ error: 'Indique une date et une heure de début valides.' }),
+  endsAt: z.coerce.date({ error: 'Vérifie la date et l’heure de fin.' }).optional(),
+  faq: z.array(z.object({
+    question: z.string({ error: 'Saisis une question.' }).trim()
+      .min(3, 'La question doit contenir au moins 3 caractères.')
+      .max(160, 'La question ne peut pas dépasser 160 caractères.'),
+    answer: z.string({ error: 'Saisis une réponse.' }).trim()
+      .min(1, 'La réponse ne peut pas être vide.')
+      .max(2000, 'La réponse ne peut pas dépasser 2 000 caractères.')
+  })).max(20, 'Une FAQ ne peut pas contenir plus de 20 questions.').default([]),
   countdownEnabled: z.boolean().default(true),
   countdownUnits: z.array(z.enum(['days', 'hours', 'minutes', 'seconds'])).max(4).default(['days', 'hours', 'minutes', 'seconds']).refine((units) => new Set(units).size === units.length, 'Unités de compte à rebours en double'),
   timezone: z.string().max(60).default('Africa/Porto-Novo'),
   currency: z.string().length(3).default('XOF'),
-  capacity: z.number().int().min(1).max(1_000_000),
+  capacity: z.number({ error: 'Indique la capacité maximale de l’événement.' })
+    .int('La capacité doit être un nombre entier.')
+    .min(1, 'La capacité doit être au moins égale à 1.')
+    .max(1_000_000, 'La capacité maximale est de 1 000 000 personnes.'),
   maxPerOrder: z.number().int().min(1).max(50).default(10),
   venueName: z.string().trim().max(160).default(''), address: z.string().trim().max(300).default(''), city: z.string().trim().max(80).default(''),
-  lat: z.number().min(-90).max(90).optional(), lng: z.number().min(-180).max(180).optional(),
+  lat: z.number({ error: 'Indique une latitude valide.' })
+    .min(-90, 'La latitude doit être comprise entre -90 et 90.')
+    .max(90, 'La latitude doit être comprise entre -90 et 90.').optional(),
+  lng: z.number({ error: 'Indique une longitude valide.' })
+    .min(-180, 'La longitude doit être comprise entre -180 et 180.')
+    .max(180, 'La longitude doit être comprise entre -180 et 180.').optional(),
   salesOpenAt: z.coerce.date().optional(), salesCloseAt: z.coerce.date().optional(),
   themeId: z.string().max(40).default('neon-cyber')
 }).refine((v) => !v.endsAt || v.endsAt >= v.startsAt, { message: 'La fin doit suivre le début', path: ['endsAt'] })

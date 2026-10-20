@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import Draggable from 'vuedraggable'
+import type { ApiError, ApiValidationIssue } from '~/composables/useApi'
+import { richTextLength } from '#shared/rich-text'
 definePageMeta({ layout: 'dashboard', middleware: 'auth' }); useSeoMeta({ title: 'Créer un événement', robots: 'noindex' })
 const { current } = useOrg(); const toast = useToast(); const busy = ref(false)
+const validationErrors = ref<string[]>([])
+const creationError = ref('')
+const errorSummary = ref<HTMLElement | null>(null)
 const { data: features } = await useAsyncData('platform-features', () => api<{ eventCreation: boolean }>('/api/platform/features'), { server: false })
 const f = reactive({ title: '', category: 'soirée', description: '', startsAt: '', endsAt: '', venueName: '', address: '', city: '', lat: '' as string | number, lng: '' as string | number, capacity: 200, visibility: 'public', faq: [] as { key: string; question: string; answer: string }[], countdownEnabled: true, countdownUnits: ['days', 'hours', 'minutes', 'seconds'] as string[] })
 function addFaq() { if (f.faq.length < 20) f.faq.push({ key: crypto.randomUUID(), question: '', answer: '' }) }
@@ -12,13 +17,113 @@ function moveFaq(index: number, offset: number) {
   if (item) f.faq.splice(next, 0, item)
 }
 function mapsSearch() { return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([f.venueName, f.address, f.city].filter(Boolean).join(', '))}` }
-async function create() { busy.value = true; try { const r = await api<{ id: string }>('/api/manage/events', { method: 'POST', body: { organizationId: current.value!.id, ...f, faq: f.faq.filter((item) => item.question.trim() && item.answer.trim()).map(({ question, answer }) => ({ question, answer })), startsAt: new Date(f.startsAt).toISOString(), endsAt: f.endsAt ? new Date(f.endsAt).toISOString() : undefined, lat: f.lat === '' ? undefined : Number(f.lat), lng: f.lng === '' ? undefined : Number(f.lng), currency: current.value!.currency } }); toast.ok('Brouillon créé : ajoute maintenant tes billets'); await navigateTo(`/app/events/${r.id}?tab=billets`) } catch (e) { toast.err(errMsg(e)) } finally { busy.value = false } }
+function clearCreateErrors() {
+  validationErrors.value = []
+  creationError.value = ''
+}
+function validateEvent(): string[] {
+  const errors: string[] = []
+  const title = f.title.trim()
+  const start = f.startsAt ? new Date(f.startsAt) : null
+  const end = f.endsAt ? new Date(f.endsAt) : null
+
+  if (title.length < 3) errors.push('Titre : saisis au moins 3 caractères.')
+  else if (title.length > 140) errors.push('Titre : 140 caractères maximum.')
+  if (!start || Number.isNaN(start.getTime())) errors.push('Date de début : choisis une date et une heure valides.')
+  if (f.endsAt && (!end || Number.isNaN(end.getTime()))) errors.push('Date de fin : vérifie la date et l’heure saisies.')
+  else if (start && end && end < start) errors.push('Date de fin : elle doit être postérieure ou égale à la date de début.')
+  if (!Number.isInteger(f.capacity) || f.capacity < 1 || f.capacity > 1_000_000) errors.push('Capacité : indique un nombre entier entre 1 et 1 000 000.')
+  if (f.countdownEnabled && !f.countdownUnits.length) errors.push('Compte à rebours : sélectionne au moins une unité ou masque le compte à rebours.')
+  if (f.faq.length > 20) errors.push('FAQ : 20 questions maximum.')
+  f.faq.forEach((item, index) => {
+    const question = item.question.trim()
+    const answer = item.answer.trim()
+    if (!question && !answer) return
+    if (question.length < 3) errors.push(`FAQ, question ${index + 1} : saisis au moins 3 caractères.`)
+    else if (question.length > 160) errors.push(`FAQ, question ${index + 1} : 160 caractères maximum.`)
+    if (!answer) errors.push(`FAQ, réponse ${index + 1} : complète la réponse ou efface cette question.`)
+    else if (answer.length > 2000) errors.push(`FAQ, réponse ${index + 1} : 2 000 caractères maximum.`)
+  })
+  if (richTextLength(f.description) > 20_000) errors.push('Description : 20 000 caractères maximum.')
+  if ((f.lat !== '') !== (f.lng !== '')) errors.push('Localisation : renseigne la latitude et la longitude ensemble, ou laisse les deux champs vides.')
+  if (f.lat !== '' && (!Number.isFinite(Number(f.lat)) || Number(f.lat) < -90 || Number(f.lat) > 90)) errors.push('Latitude : indique une valeur comprise entre -90 et 90.')
+  if (f.lng !== '' && (!Number.isFinite(Number(f.lng)) || Number(f.lng) < -180 || Number(f.lng) > 180)) errors.push('Longitude : indique une valeur comprise entre -180 et 180.')
+  return errors
+}
+function formatApiIssue(issue: ApiValidationIssue): string {
+  const [field, index, detail] = issue.path
+  const labels: Record<string, string> = {
+    title: 'Titre',
+    startsAt: 'Date de début',
+    endsAt: 'Date de fin',
+    capacity: 'Capacité',
+    countdownUnits: 'Compte à rebours',
+    description: 'Description',
+    organizationId: 'Organisation',
+    lat: 'Latitude',
+    lng: 'Longitude'
+  }
+  if (field === 'faq' && typeof index === 'number') {
+    const item = detail === 'answer' ? 'réponse' : 'question'
+    return `FAQ, ${item} ${index + 1} : ${issue.message}`
+  }
+  const label = typeof field === 'string' ? labels[field] : undefined
+  return label ? `${label} : ${issue.message}` : issue.message
+}
+async function showCreateErrors(errors: string[], title: string) {
+  validationErrors.value = errors
+  creationError.value = title
+  await nextTick()
+  errorSummary.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  errorSummary.value?.focus()
+}
+async function create() {
+  clearCreateErrors()
+  const localErrors = validateEvent()
+  if (localErrors.length) {
+    await showCreateErrors(localErrors, 'Vérifie les informations signalées avant de créer le brouillon.')
+    return
+  }
+  if (!current.value) {
+    await showCreateErrors(['Organisation : sélectionne ou crée une organisation avant de créer un événement.'], 'Impossible de créer cet événement.')
+    return
+  }
+
+  busy.value = true
+  try {
+    const r = await api<{ id: string }>('/api/manage/events', {
+      method: 'POST',
+      body: {
+        organizationId: current.value.id,
+        ...f,
+        faq: f.faq.filter((item) => item.question.trim() && item.answer.trim()).map(({ question, answer }) => ({ question, answer })),
+        startsAt: new Date(f.startsAt).toISOString(),
+        endsAt: f.endsAt ? new Date(f.endsAt).toISOString() : undefined,
+        lat: f.lat === '' ? undefined : Number(f.lat),
+        lng: f.lng === '' ? undefined : Number(f.lng),
+        currency: current.value.currency
+      }
+    })
+    toast.ok('Brouillon créé : ajoute maintenant tes billets')
+    await navigateTo(`/app/events/${r.id}?tab=billets`)
+  } catch (error) {
+    const apiError = error as ApiError
+    if (apiError.issues?.length) {
+      await showCreateErrors(apiError.issues.map(formatApiIssue), 'Certains champs doivent être corrigés.')
+    } else {
+      await showCreateErrors([], errMsg(error))
+    }
+    toast.err(errMsg(error))
+  } finally {
+    busy.value = false
+  }
+}
 </script>
 <template>
   <OrgOnboarding v-if="!current" />
   <UiEmpty v-else-if="features && !features.eventCreation" title="Création suspendue" text="La création d’événements est temporairement désactivée par TYPS." />
   <div v-else class="mx-auto max-w-2xl"><h1 class="text-[clamp(1.8rem,4vw,2.6rem)] font-black">Créer un événement</h1><p class="mt-2 text-muted">L’essentiel d’abord. Tu pourras tout ajuster ensuite : affiche, billets, thème, équipe.</p>
-    <form class="card mt-8 space-y-5 p-6" @submit.prevent="create"><label class="block"><span class="label">Titre</span><input v-model="f.title" required minlength="3" class="input" placeholder="ex. Nuit Afro Vibes"></label>
+    <form class="card mt-8 space-y-5 p-6" novalidate @submit.prevent="create" @input="clearCreateErrors"><section v-if="creationError || validationErrors.length" ref="errorSummary" tabindex="-1" class="rounded-xl border border-red-400/50 bg-red-400/10 p-4 text-sm text-red-100" role="alert" aria-live="assertive"><h2 class="font-bold">{{ creationError }}</h2><ul v-if="validationErrors.length" class="mt-2 list-inside list-disc space-y-1"><li v-for="(error, index) in validationErrors" :key="index">{{ error }}</li></ul><p v-else class="mt-2">Vérifie ta connexion, puis réessaie. Si le problème persiste, contacte l’assistance en indiquant l’heure de l’erreur.</p></section><label class="block"><span class="label">Titre</span><input v-model="f.title" required minlength="3" maxlength="140" class="input" placeholder="ex. Nuit Afro Vibes"></label>
       <div class="grid gap-4 sm:grid-cols-2"><label class="block"><span class="label">Catégorie</span><select v-model="f.category" class="input"><option v-for="c in ['soirée', 'concert', 'festival', 'conférence', 'anniversaire', 'privé']" :key="c">{{ c }}</option></select></label><label class="block"><span class="label">Début (date et heure)</span><input v-model="f.startsAt" type="datetime-local" required class="input"></label><label class="block"><span class="label">Fin (facultatif)</span><input v-model="f.endsAt" type="datetime-local" :min="f.startsAt" class="input"></label><label class="block"><span class="label">Lieu</span><input v-model="f.venueName" class="input" autocomplete="organization-title"></label><label class="block"><span class="label">Adresse</span><input v-model="f.address" class="input" autocomplete="street-address"></label><label class="block"><span class="label">Ville</span><input v-model="f.city" class="input" autocomplete="address-level2"></label><label class="block"><span class="label">Latitude (facultatif)</span><input v-model="f.lat" type="number" min="-90" max="90" step="any" class="input"></label><label class="block"><span class="label">Longitude (facultatif)</span><input v-model="f.lng" type="number" min="-180" max="180" step="any" class="input"></label><a v-if="f.venueName || f.address || f.city" :href="mapsSearch()" target="_blank" rel="noopener" class="text-sm text-accent underline sm:col-span-2">Vérifier le lieu dans Google Maps</a><label class="block"><span class="label">Capacité</span><input v-model.number="f.capacity" type="number" min="1" required class="input"></label><label class="block"><span class="label">Visibilité</span><select v-model="f.visibility" class="input"><option value="public">Public</option><option value="private">Privé (lien secret)</option><option value="invite">Sur invitation</option></select></label></div>
       <div><span class="label">Description de l’événement</span><RichTextEditor v-model="f.description" label="Description de l’événement" :max-characters="20_000" hint="La mise en forme et les liens sont nettoyés avant l’enregistrement." /></div>
       <section class="space-y-3 border-t border-line pt-5"><div class="flex items-center justify-between gap-2"><h2 class="font-bold">Questions fréquentes</h2><button type="button" class="btn btn-ghost !min-h-[40px]" :disabled="f.faq.length >= 20" @click="addFaq">Ajouter une question</button></div><p v-if="f.faq.length" class="text-xs text-muted">Glisse les questions pour choisir leur ordre d’affichage. Les flèches fonctionnent aussi au clavier.</p><Draggable v-model="f.faq" item-key="key" handle=".faq-drag-handle" ghost-class="sortable-ghost" chosen-class="sortable-chosen" :animation="180" class="space-y-3"><template #item="{ element: item, index: i }"><article class="grid gap-3 rounded-xl border border-line bg-surface/30 p-3"><div class="flex items-center gap-2"><button type="button" class="faq-drag-handle grid h-10 w-10 cursor-grab touch-none place-items-center rounded-lg border border-line text-muted hover:border-accent hover:text-accent active:cursor-grabbing" :aria-label="`Réordonner la question ${i + 1}`" title="Glisser pour réordonner">⠿</button><span class="text-xs font-semibold text-muted">Question {{ i + 1 }}</span><div class="ml-auto flex gap-1"><button type="button" class="grid h-10 w-10 place-items-center rounded-lg border border-line text-muted hover:text-accent disabled:opacity-40" :disabled="i === 0" :aria-label="`Déplacer la question ${i + 1} vers le haut`" @click="moveFaq(i, -1)">↑</button><button type="button" class="grid h-10 w-10 place-items-center rounded-lg border border-line text-muted hover:text-accent disabled:opacity-40" :disabled="i === f.faq.length - 1" :aria-label="`Déplacer la question ${i + 1} vers le bas`" @click="moveFaq(i, 1)">↓</button><button type="button" class="grid h-10 w-10 place-items-center rounded-lg border border-line text-red-300 hover:bg-red-400/10" :aria-label="`Supprimer la question ${i + 1}`" @click="f.faq.splice(i, 1)">×</button></div></div><label class="block"><span class="label">Question</span><input v-model="item.question" maxlength="160" class="input" placeholder="À quelle heure ouvrent les portes ?"></label><label class="block"><span class="label">Réponse</span><textarea v-model="item.answer" maxlength="2000" rows="2" class="input !py-3" /></label></article></template></Draggable></section>
