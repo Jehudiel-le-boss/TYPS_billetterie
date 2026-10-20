@@ -55,7 +55,7 @@ export async function getNeonAuthIdentity(db: Db, neonUserId: string): Promise<N
     limit 1
   `)
   const identity = identityResult.rows[0] as NeonAuthIdentity | undefined
-  if (!identity) throw new HttpError(403, 'Vérifie ton adresse e-mail Neon avant de continuer', 'neon_email_unverified')
+  if (!identity) throw new HttpError(403, 'Neon a accepté la connexion, mais TYPS ne retrouve pas ce compte dans la base Neon Auth configurée. Vérifie la configuration de liaison Neon puis réessaie.', 'neon_identity_not_found')
   if (!identity.email_verified) throw new HttpError(403, 'Vérifie ton adresse e-mail Neon avant de continuer', 'neon_email_unverified')
   return identity
 }

@@ -1,12 +1,27 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'auth' }); useSeoMeta({ title: 'Connexion', robots: 'noindex' })
 const route = useRoute(); const toast = useToast(); const f = reactive({ email: '', password: '' }); const busy = ref(false)
-async function submit() { busy.value = true; try { const auth = await useNeonAuth(); const result = await auth.adapter.signIn.email(f); if (result.error) throw new Error(result.error.message || 'Connexion impossible'); await syncNeonSession(); const next = String(route.query.next ?? ''); await navigateTo(next.startsWith('/') && !next.startsWith('//') ? next : '/app') } catch (e) { toast.err(errMsg(e)) } finally { busy.value = false } }
+const nextPath = computed(() => {
+  const next = String(route.query.next ?? '')
+  return next.startsWith('/') && !next.startsWith('//') ? next : '/app'
+})
+async function submit() { busy.value = true; try { const auth = await useNeonAuth(); const result = await auth.adapter.signIn.email(f); if (result.error) throw new Error(result.error.message || 'Connexion impossible'); await syncNeonSession(); await navigateTo(nextPath.value) } catch (e) { toast.err(errMsg(e)) } finally { busy.value = false } }
+async function resendVerification() {
+  if (!f.email.trim()) { toast.err('Saisis ton adresse e-mail pour demander un nouveau lien.'); return }
+  busy.value = true
+  try {
+    await resendNeonVerificationEmail(f.email, `${window.location.origin}/auth/verify`)
+    toast.ok('Demande acceptée. Si cette adresse a un compte non vérifié et que l’envoi est actif dans Neon Auth, un nouveau message sera envoyé. Vérifie aussi les spams.')
+  } catch (e) { toast.err(errMsg(e)) }
+  finally { busy.value = false }
+}
 async function signInGoogle() {
   busy.value = true
   try {
     const auth = await useNeonAuth()
-    const result = await auth.adapter.signIn.social({ provider: 'google', callbackURL: `${window.location.origin}/auth/verify` })
+    const callbackURL = new URL('/auth/verify', window.location.origin)
+    callbackURL.searchParams.set('next', nextPath.value)
+    const result = await auth.adapter.signIn.social({ provider: 'google', callbackURL: callbackURL.toString() })
     if (result.error) throw new Error(result.error.message || 'Connexion Google impossible')
     if (!result.data?.url) throw new Error('Neon Auth n’a pas fourni le lien de connexion Google')
     window.location.assign(result.data.url)
@@ -26,5 +41,6 @@ async function signInGoogle() {
   </button>
   <div class="my-5 flex items-center gap-3 text-xs text-muted"><span class="h-px flex-1 bg-white/10"></span><span>ou avec ton e-mail</span><span class="h-px flex-1 bg-white/10"></span></div>
   <form class="space-y-4" @submit.prevent="submit"><label class="block"><span class="label">E-mail</span><input v-model="f.email" type="email" required autocomplete="email" class="input"></label><label class="block"><span class="label">Mot de passe</span><input v-model="f.password" type="password" required autocomplete="current-password" class="input"></label><button class="btn btn-primary w-full" :disabled="busy">{{ busy ? 'Connexion…' : 'Se connecter' }}</button></form>
+  <button type="button" class="mt-4 w-full text-sm text-accent underline disabled:opacity-50" :disabled="busy" @click="resendVerification">Adresse non vérifiée ou lien non reçu ? Renvoyer le lien</button>
   <div class="mt-5 flex justify-between text-sm"><NuxtLink to="/auth/forgot" class="text-accent underline">Mot de passe oublié ?</NuxtLink><NuxtLink to="/auth/register" class="text-accent underline">Créer un compte</NuxtLink></div>
 </template>

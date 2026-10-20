@@ -152,4 +152,8 @@ describe('liaison des identités Neon Auth', () => {
 
     await expect(getNeonAuthIdentity(db, neonIdentity.id)).rejects.toMatchObject({ status: 403, code: 'neon_email_unverified' })
   })
+
+  it('distingue une identité absente de Neon Auth d’une adresse non vérifiée', async () => {
+    await expect(getNeonAuthIdentity(db, randomUUID())).rejects.toMatchObject({ status: 403, code: 'neon_identity_not_found' })
+  })
 })

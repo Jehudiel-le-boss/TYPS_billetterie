@@ -22,3 +22,9 @@ export async function syncNeonSession() {
   if (!me.user) throw new Error('La session TYPS n’a pas pu être créée. Réessaie de te connecter.')
   return me
 }
+
+export async function resendNeonVerificationEmail(email: string, callbackURL: string) {
+  const auth = await useNeonAuth()
+  const result = await auth.adapter.sendVerificationEmail({ email, callbackURL })
+  if (result.error) throw new Error(result.error.message || 'Impossible de renvoyer le lien de vérification')
+}
