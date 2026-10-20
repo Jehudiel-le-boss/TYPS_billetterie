@@ -44,6 +44,11 @@ tests/         unitaires + intégration (PGlite)   scripts/  migrate, seed, expi
 ```
 Principes clés : montants en **entiers** ; quota garanti par `UPDATE … WHERE sold + reserved + qty <= quota` + verrou d'événement + `CHECK` SQL ; billet = `UPDATE … WHERE status='valid'` (un seul scan gagne) ; **le QR ne contient qu'une référence signée HMAC** ; le paiement n'est jamais cru sur la redirection (relecture FedaPay serveur-à-serveur).
 
+Les descriptions d'événements utilisent un éditeur Tiptap accessible (titres, listes, liens, couleurs, alignement, historique et collage nettoyé). Les FAQ sont réordonnables à la création et à l'édition; les calques du Studio de billets sont également réordonnables. Ces listes utilisent VueDraggable/SortableJS avec des commandes clavier de déplacement pour les FAQ.
+
+## Guides de démarrage
+La première visite publique propose un tour facultatif, avec progression, navigation clavier et option pour passer. Après inscription, le parcours choisi (acheteur, organisateur ou agent) lance une aide contextualisée; les rôles d’équipe et leurs permissions restent attribués par les organisateurs, indépendamment de ce choix. Le bouton d’aide flottant permet de rejouer la découverte, un parcours spécifique ou le guide complet. L’état « déjà vu » et le parcours choisi sont conservés dans le stockage local du navigateur.
+
 ## Fonctionnalités : état réel
 Voir la section « État de livraison » du message de livraison et `SECURITY.md`. Fonctions **prévues mais désactivées** (non simulées) : abonnements payants/facturation, API publique, webhooks sortants, marque blanche, marketplace de modèles, WhatsApp, remboursement automatique via l'API FedaPay.
 

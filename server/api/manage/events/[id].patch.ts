@@ -7,8 +7,9 @@ import { events, eventLocations } from '~~/server/db/schema'
 import { hashPassword } from '~~/server/utils/crypto'
 import { audit } from '~~/server/utils/audit'
 import { sanitizeEventDescription } from '~~/server/utils/rich-content'
+import { richDescriptionSchema } from '~~/shared/validation'
 const schema = z.object({
-  title: z.string().trim().min(3).max(140), description: z.string().trim().max(20_000), category: z.string().trim().max(40), visibility: z.enum(['public', 'private', 'invite']),
+  title: z.string().trim().min(3).max(140), description: richDescriptionSchema, category: z.string().trim().max(40), visibility: z.enum(['public', 'private', 'invite']),
   startsAt: z.coerce.date(), endsAt: z.coerce.date().nullable(), capacity: z.number().int().min(1).max(1_000_000), maxPerOrder: z.number().int().min(1).max(50),
   faq: z.array(z.object({ question: z.string().trim().min(3).max(160), answer: z.string().trim().min(1).max(2000) })).max(20),
   countdownEnabled: z.boolean(), countdownUnits: z.array(z.enum(['days', 'hours', 'minutes', 'seconds'])).max(4).refine((units) => new Set(units).size === units.length),

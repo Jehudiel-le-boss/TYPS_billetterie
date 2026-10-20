@@ -1,5 +1,6 @@
 <script setup lang="ts">
 // Éditeur visuel de billets : glisser-déposer, redimensionnement, calques, magnétisme, annulation, import PNG/JPG/PDF, enregistrement auto.
+import Draggable from 'vuedraggable'
 import { DATE_FORMATS, FIELD_LABELS, FIELD_KEYS, PRINT_FORMATS, SAMPLE_CONTEXT, uid, type TemplateLayout, type TicketContext, type TplElement } from '~~/shared/template'
 import { THEMES } from '~~/shared/themes'
 const props = defineProps<{ templateId: string }>()
@@ -23,6 +24,10 @@ let palettePointer: { id: number; field: string; sx: number; sy: number } | null
 const { data, error } = await useAsyncData(`tpl-${props.templateId}`, () => api(`/api/templates/${props.templateId}`), { server: false })
 watchEffect(() => { if (data.value && !layout.value) { tpl.value = data.value; layout.value = data.value.layout; nextTick(() => { ready = true; fit(); loadAssets() }) } })
 const el = computed(() => layout.value?.elements.find((e) => e.id === sel.value) as any)
+const layerElements = computed({
+  get: () => layout.value ? [...layout.value.elements].reverse() : [],
+  set: (items: TplElement[]) => { if (layout.value) layout.value.elements = [...items].reverse() }
+})
 const label = (e: any) => e.name || (e.type === 'field' ? FIELD_LABELS[e.field as keyof typeof FIELD_LABELS] : e.type === 'text' ? e.text.slice(0, 22) || 'Texte' : e.type === 'qr' ? 'QR code' : e.type === 'image' ? 'Image' : e.shape === 'ellipse' ? 'Ellipse' : 'Rectangle')
 
 const snapshot = () => { past.value.push(JSON.stringify(layout.value)); if (past.value.length > 80) past.value.shift(); future.value = [] }
@@ -285,7 +290,7 @@ const hpos = (h: string) => ({ left: h.includes('w') ? '0%' : h.includes('e') ? 
         <label class="label mt-4" for="thm">Appliquer un thème</label>
         <select id="thm" class="input" @change="applyTheme(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).selectedIndex = 0"><option value="">Choisir…</option><option v-for="t in THEMES" :key="t.id" :value="t.id">{{ t.name }}</option></select>
         <p class="label mt-4">Calques</p>
-        <ul class="space-y-1"><li v-for="e in [...layout.elements].reverse()" :key="e.id" class="flex items-center gap-1"><button class="min-h-[36px] flex-1 truncate rounded-lg px-2 text-left text-xs" :class="sel === e.id ? 'bg-accent/20 text-accent' : 'hover:bg-line/50'" @click="sel = e.id">{{ label(e) }}</button><button class="min-h-[36px] w-9 rounded-lg text-xs hover:bg-line/50" :aria-label="e.hidden ? 'Afficher' : 'Masquer'" @click="snapshot(); e.hidden = !e.hidden">{{ e.hidden ? '◌' : '●' }}</button></li></ul>
+        <Draggable v-model="layerElements" tag="ul" item-key="id" handle=".layer-drag-handle" ghost-class="sortable-ghost" chosen-class="sortable-chosen" :animation="180" class="space-y-1" aria-label="Calques réordonnables" @start="snapshot"><template #item="{ element: e }"><li class="flex items-center gap-1 rounded-lg"><button type="button" class="layer-drag-handle grid min-h-[36px] w-8 shrink-0 cursor-grab touch-none place-items-center rounded-lg text-muted hover:bg-line/50 hover:text-accent active:cursor-grabbing" :aria-label="`Glisser pour réordonner ${label(e)}`" title="Glisser pour réordonner">⠿</button><button class="min-h-[36px] flex-1 truncate rounded-lg px-2 text-left text-xs" :class="sel === e.id ? 'bg-accent/20 text-accent' : 'hover:bg-line/50'" @click="sel = e.id">{{ label(e) }}</button><button class="min-h-[36px] w-9 rounded-lg text-xs hover:bg-line/50" :aria-label="e.hidden ? 'Afficher' : 'Masquer'" @click="snapshot(); e.hidden = !e.hidden">{{ e.hidden ? '◌' : '●' }}</button></li></template></Draggable>
       </aside>
 
       <!-- Scène -->

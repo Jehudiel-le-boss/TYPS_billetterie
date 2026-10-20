@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { qrContrastOk } from '../composables/useQrPreview'
 import { sanitizeEventDescription } from '../server/utils/rich-content'
+import { htmlToPlainText, isRichTextEmpty, toEditorHtml } from '../shared/rich-text'
 import { getCountdownValues } from '../shared/countdown'
-import { eventCreateSchema } from '../shared/validation'
+import { eventCreateSchema, richDescriptionSchema } from '../shared/validation'
 
 describe('contenu des événements', () => {
   it('nettoie le HTML riche en conservant la mise en forme autorisée', () => {
@@ -11,8 +12,31 @@ describe('contenu des événements', () => {
   })
 
   it('refuse les liens et attributs dangereux dans une description', () => {
-    expect(sanitizeEventDescription('<p onclick="alert(1)">Texte</p><a href="javascript:alert(1)">ouvrir</a>'))
-      .toBe('<p>Texte</p>ouvrir')
+    const cleaned = sanitizeEventDescription('<p onclick="alert(1)">Texte</p><a href="javascript:alert(1)">ouvrir</a>')
+    expect(cleaned).not.toContain('onclick')
+    expect(cleaned).not.toContain('javascript:')
+    expect(htmlToPlainText(cleaned)).toContain('Texte\nouvrir')
+  })
+
+  it('conserve les mises en forme autorisées et filtre les styles dangereux', () => {
+    const cleaned = sanitizeEventDescription('<p style="text-align:center;color:#fff;background-image:url(javascript:alert(1))"><span style="color:#22d3ee">TYPS</span><script>alert(1)</script></p>')
+    expect(cleaned).toContain('text-align:center')
+    expect(cleaned).toContain('color:#22d3ee')
+    expect(cleaned).not.toContain('background-image')
+    expect(cleaned).not.toContain('<script')
+  })
+
+  it('convertit les anciennes données JSON Tiptap et le texte brut en HTML nettoyé', () => {
+    expect(toEditorHtml('Bonjour\nle monde')).toBe('<p>Bonjour</p><p>le monde</p>')
+    const legacy = JSON.stringify({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'TYPS', marks: [{ type: 'bold' }] }] }] })
+    expect(toEditorHtml(legacy)).toBe('<div><p><strong>TYPS</strong></p></div>')
+    expect(isRichTextEmpty('<p><br></p>')).toBe(true)
+  })
+
+  it('applique la limite de description au texte visible et non au balisage', () => {
+    const formatted = `<p>${'<strong>TYPS</strong>'.repeat(2000)}</p>`
+    expect(richDescriptionSchema.safeParse(formatted).success).toBe(true)
+    expect(richDescriptionSchema.safeParse(`<p>${'a'.repeat(20_001)}</p>`).success).toBe(false)
   })
 
   it('valide la plage de dates et les unités du compte à rebours', () => {

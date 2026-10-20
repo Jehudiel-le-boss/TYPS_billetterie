@@ -4,7 +4,7 @@
 
 Le cahier des charges initial est conservé dans [`TASK_AUDIT_IMPLEMENTATION.md`](./TASK_AUDIT_IMPLEMENTATION.md), créé avant les changements fonctionnels. Cet audit distingue les fonctionnalités vérifiées, les lacunes constatées et les risques qui demandent encore une validation externe. La liste fournie par l'utilisateur était une liste d'audit, pas une liste de défauts confirmés.
 
-Les améliorations portant sur l'éditeur de billets, l'orientation des utilisateurs, les événements, les descriptions riches et la documentation sont implémentées dans le dépôt. Le lot initial a été commité et poussé sur `main`. Les mises à jour de dépendances décrites plus loin ont été testées localement, mais ne sont pas poussées. Une sauvegarde PostgreSQL locale a été créée et vérifiée avant d'exécuter `npm run db:migrate`. Le fichier `.env` a été lu à la demande de l'utilisateur; ses secrets n'ont été ni affichés, ni copiés dans le rapport ou transmis.
+Les améliorations portant sur l'éditeur de billets, l'orientation des utilisateurs, les événements, les descriptions riches et la documentation sont implémentées dans le dépôt. Le lot initial a été commité et poussé sur `main`; cette révision ajoute le guide global et l'éditeur riche thème-adaptatif, avec ses dépendances et le glisser-déposer réordonnable. Une sauvegarde PostgreSQL locale a été créée et vérifiée avant d'exécuter `npm run db:migrate`. Le fichier `.env` a été lu à la demande de l'utilisateur; ses secrets n'ont été ni affichés, ni copiés dans le rapport ou transmis.
 
 ## Changements réalisés
 
@@ -34,8 +34,9 @@ Les améliorations portant sur l'éditeur de billets, l'orientation des utilisat
 
 ### Texte et personnalisation
 
-- Les champs de description de création et d'édition utilisent Tiptap avec StarterKit open-source (gras, italique, listes). Les fonctionnalités commerciales Tiptap Pro n'ont pas été ajoutées.
-- Les descriptions sont nettoyées côté serveur à l'enregistrement et à la lecture publique/gestionnaire, avec une liste blanche HTML.
+- Les champs de description utilisent un éditeur Tiptap enrichi : historique, titres, gras/italique/souligné/barré, listes, alignement, citations, liens, images distantes avec texte alternatif, couleurs, surlignage, mode focus, comptage du texte et collage propre; ses contrôles reprennent les couleurs du thème actif. Ce sont des extensions open-source, sans fonctions commerciales Tiptap Pro.
+- Les descriptions sont nettoyées avec une liste blanche cohérente côté éditeur, serveur et affichage; les anciens contenus texte brut et JSON Tiptap sont convertis.
+- Les FAQ d'événement sont réordonnables par glisser-déposer et par commandes accessibles au clavier lors de la création et de l'édition. Les calques du Studio de billets sont également réordonnables. VueDraggable/SortableJS est utilisé pour ces listes; le glisser-déposer direct sur le canevas du billet reste géré par son éditeur spécialisé.
 - Le studio de billets permettait déjà d'importer un arrière-plan PNG/JPG/PDF et d'y placer les champs dynamiques, dont le QR. Il conserve aussi les polices intégrées Sans, Serif et Mono. L'import de police personnalisée n'a pas été ajouté.
 
 ### Cookies et documentation

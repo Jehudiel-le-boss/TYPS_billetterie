@@ -1,13 +1,15 @@
 import { z } from 'zod'
+import { richTextLength } from './rich-text'
 export const emailSchema = z.string().trim().toLowerCase().email().max(254)
 export const passwordSchema = z.string().min(10, 'Au moins 10 caractères').max(200)
+export const richDescriptionSchema = z.string().trim().max(80_000).refine((value) => richTextLength(value) <= 20_000, 'La description ne peut pas dépasser 20 000 caractères de texte.')
 export const registerSchema = z.object({ email: emailSchema, password: passwordSchema, fullName: z.string().trim().min(2).max(120), phone: z.string().trim().max(30).optional() })
 export const loginSchema = z.object({ email: emailSchema, password: z.string().min(1).max(200) })
 export const slugSchema = z.string().trim().toLowerCase().regex(/^[a-z0-9]+(-[a-z0-9]+)*$/).min(3).max(60)
 export const eventCreateSchema = z.object({
   organizationId: z.string().uuid(),
   title: z.string().trim().min(3).max(140),
-  description: z.string().trim().max(20_000).default(''),
+  description: richDescriptionSchema.default(''),
   category: z.string().trim().max(40).default('soirée'),
   visibility: z.enum(['public', 'private', 'invite']).default('public'),
   startsAt: z.coerce.date(), endsAt: z.coerce.date().optional(),

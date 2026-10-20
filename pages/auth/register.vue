@@ -1,11 +1,16 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'auth' }); useSeoMeta({ title: 'Créer un compte', robots: 'noindex' })
-const route = useRoute(); const toast = useToast(); const f = reactive({ fullName: '', email: '', password: '' }); const intent = ref<'attend' | 'organize' | 'agent'>('attend'); const busy = ref(false); const verificationPending = ref(false); const verificationCode = ref('')
+const route = useRoute(); const toast = useToast(); const f = reactive({ fullName: '', email: '', password: '' }); const intent = ref<'attend' | 'organize' | 'agent'>(route.query.intent === 'organize' || route.query.intent === 'agent' ? route.query.intent : 'attend'); const busy = ref(false); const verificationPending = ref(false); const verificationCode = ref('')
 const nextPath = computed(() => {
   const next = String(route.query.next ?? '')
   return next.startsWith('/') && !next.startsWith('//') ? next : ''
 })
-const destination = computed(() => nextPath.value || ({ attend: '/events', organize: '/app', agent: '/scan' })[intent.value])
+const destination = computed(() => {
+  const path = nextPath.value || ({ attend: '/events', organize: '/app', agent: '/scan' })[intent.value]
+  const url = new URL(path, 'https://typs.local')
+  url.searchParams.set('typsWelcome', intent.value)
+  return `${url.pathname}${url.search}${url.hash}`
+})
 async function continueWithIntent() {
   if (intent.value === 'agent') toast.ok('Pour scanner, un organisateur doit d’abord t’inviter sur un événement.')
   await navigateTo(destination.value)

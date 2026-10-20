@@ -57,7 +57,7 @@ const statusLabel: Record<BuyerOrder['status'], string> = {
 <template>
   <section>
     <p class="text-sm font-semibold text-accent">Espace acheteur</p>
-    <h1 class="mt-1 text-[clamp(1.8rem,4vw,2.8rem)] font-black">Mes achats</h1>
+    <h1 data-guide="buyer-history" class="mt-1 text-[clamp(1.8rem,4vw,2.8rem)] font-black">Mes achats</h1>
     <p class="mt-2 text-sm text-muted">Retrouve ici les commandes passées avec ton adresse vérifiée : {{ me.user?.email }}</p>
 
     <div v-if="!me.user?.emailVerified" class="mt-6 rounded-xl border border-amber-400/40 bg-amber-400/10 p-4 text-sm text-amber-100" role="status">
