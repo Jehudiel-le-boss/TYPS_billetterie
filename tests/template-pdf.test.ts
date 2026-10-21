@@ -9,6 +9,8 @@ describe('gabarit + PDF', () => {
     expect(resolveField('ticket_type', { ...SAMPLE_CONTEXT, ticketType: 'Premium' })).toBe('Premium')
     expect(resolveField('ticket_type', { ...SAMPLE_CONTEXT, ticketType: undefined })).toBe(SAMPLE_CONTEXT.category)
     expect(ticketTypeLabel('vip', 'Entrée')).toBe('VIP')
+    expect(ticketTypeLabel('backstage', 'Accès scène')).toBe('Backstage')
+    expect(ticketTypeLabel('free', 'Entrée')).toBe('Gratuit')
     expect(ticketTypeLabel('custom', 'Accès terrasse')).toBe('Accès terrasse')
   })
   it('garde le type réel d’un calque distinct de son nom personnalisé', () => {

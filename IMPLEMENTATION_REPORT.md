@@ -105,3 +105,11 @@ Pour poursuivre sans exposer de secrets : fournir au CLI un compte Vercel qui a 
 - L'édition de lieu accepte les structures de coordonnées usuelles dans les URL Maps (`@lat,lng`, `!3d...!4d...`, `!2d...!3d...`, et les paramètres de recherche/destination). Une carte OpenStreetMap intégrée s'affiche quand les deux coordonnées sont valides; Google Maps reste disponible pour rechercher le lieu. Un raccourcisseur Maps qui ne contient pas ses coordonnées ne peut pas être résolu sans suivre un lien externe.
 - Validation locale ciblée : typecheck, ESLint, 12 tests de contenu événementiel et 25 tests d'intégration (dont priorité du modèle de catégorie et repli événementiel), puis build Nuxt client/serveur réussi. Les tests d'intégration appliquent également la migration sur PGlite.
 - Le parcours Vercel authentifié n'a pas été inspecté ou déployé dans cette session. Vérifier sur préproduction l'aperçu secret, l'iframe cartographique sur les navigateurs ciblés et les PDF de billets pour deux catégories liées à deux modèles.
+
+## Revue de cohérence du parcours billets (2026-10-21)
+
+- La page publique et le formulaire d'achat affichent maintenant le type de billet dérivé de la catégorie, comme le billet PDF, au lieu de reprendre l'ancien indicateur VIP. Une catégorie « Backstage » n'est donc plus présentée à tort comme VIP.
+- La page publique n'envoie plus vers le paiement quand aucune catégorie n'est vendable; elle indique si les billets ne sont pas encore disponibles, si toutes les catégories sont épuisées ou si aucune vente n'est ouverte.
+- Le bouton mobile de paiement respecte désormais l'acceptation des conditions comme le bouton bureau et affiche « Obtenir mes billets » pour une commande gratuite.
+- L'onglet de gestion « Aperçu » ne plante plus si la FAQ provient d'un tableau réactif Vue : les données sont copiées champ par champ au lieu d'appeler `structuredClone` sur un proxy non clonable. Ce correctif cible le `DataCloneError` transmis par l'utilisateur.
+- Vérifications automatisées : typecheck, ESLint, tests et build de production. Aucun navigateur authentifié partagé n'était disponible; le rendu visuel du parcours à des largeurs téléphone/tablette/bureau, l'achat réel et l'expérience depuis un compte organisateur restent à tester avant de certifier la réactivité complète.
