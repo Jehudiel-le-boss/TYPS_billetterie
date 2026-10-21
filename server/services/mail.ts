@@ -20,6 +20,63 @@ export async function sendEmail(db: Db, to: string, subject: string, html: strin
   await db.insert(notificationLogs).values({ channel: 'email', status, response: `${subject} → ${to.replace(/(.).+(@.+)/, '$1***$2')} : ${response}` })
   return status === 'sent'
 }
+export type EmailDeliveryStatus = 'sent' | 'not_configured' | 'rejected' | 'error'
+export interface EmailDelivery { status: EmailDeliveryStatus; httpStatus?: number; reason?: string }
+const safeEmailReason = (value: string) => value
+  .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[adresse masquée]')
+  .replace(/\b(?:re|rk)_[A-Za-z0-9_-]{12,}\b/g, '[clé masquée]')
+  .replace(/\s+/g, ' ')
+  .slice(0, 240)
+
+export async function sendEmailWithStatus(db: Db, to: string, subject: string, html: string): Promise<EmailDelivery> {
+  const m = env.mail()
+  let delivery: EmailDelivery
+  let logStatus: string
+  let detail: string
+  if (!m.apiKey) {
+    delivery = { status: 'not_configured', reason: 'RESEND_API_KEY absente dans cet environnement.' }
+    logStatus = 'skipped'
+    detail = delivery.reason ?? 'RESEND_API_KEY absente dans cet environnement.'
+  } else {
+    try {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${m.apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: m.from, to: [to], subject, html })
+      })
+      if (response.ok) {
+        delivery = { status: 'sent', httpStatus: response.status }
+        logStatus = 'sent'
+        detail = `HTTP ${response.status}`
+      } else {
+        const payload: unknown = await response.json().catch(() => null)
+        const errorBody = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {}
+        const providerName = typeof errorBody.name === 'string' ? safeEmailReason(errorBody.name) : ''
+        const providerMessage = typeof errorBody.message === 'string' ? safeEmailReason(errorBody.message) : ''
+        const reason = [providerName, providerMessage].filter(Boolean).join(' : ')
+        delivery = {
+          status: response.status >= 500 ? 'error' : 'rejected',
+          httpStatus: response.status,
+          ...(reason && { reason })
+        }
+        logStatus = 'failed'
+        detail = `HTTP ${response.status}${reason ? ` : ${reason}` : ''}`
+      }
+    } catch (error) {
+      const reason = safeEmailReason(error instanceof Error ? error.message : 'Erreur réseau inconnue')
+      delivery = { status: 'error', reason: 'Impossible de joindre le service e-mail.' }
+      logStatus = 'failed'
+      detail = `Erreur réseau : ${reason}`
+    }
+  }
+  const maskedTo = to.replace(/(.).+(@.+)/, '$1***$2')
+  await db.insert(notificationLogs).values({
+    channel: 'email',
+    status: logStatus,
+    response: `${subject} → ${maskedTo} : ${detail}`
+  })
+  return delivery
+}
 /** Rappels planifiés (sans secret dans la charge utile). Traités par scripts/… ou /api/internal/cron. */
 export async function scheduleReminder(db: Db, toEmail: string, payload: { eventId: string; slug: string; title: string }, runAt: Date) {
   await db.insert(notificationJobs).values({ kind: 'event_reminder', toEmail, payload, runAt })

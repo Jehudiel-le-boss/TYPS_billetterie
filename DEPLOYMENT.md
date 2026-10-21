@@ -30,7 +30,7 @@ Alternative : créer un bucket **privé** (Cloudflare R2, AWS S3, MinIO…) et u
 Remboursements et reversements : traités **manuellement** (suivi dans TYPS) — l'API de remboursement n'est pas utilisée.
 
 ## 5 bis. E-mails
-Créer un compte Resend, vérifier le domaine d'envoi, renseigner `RESEND_API_KEY` et `MAIL_FROM`. Sans clé, les e-mails sont journalisés (`notification_logs`) mais non envoyés : les acheteurs gardent l'accès par le lien de la page de confirmation.
+Créer un compte Resend, vérifier le domaine d'envoi, renseigner `RESEND_API_KEY` et `MAIL_FROM` dans l'environnement **Production**, puis redéployer. `MAIL_FROM` doit utiliser une adresse du domaine vérifié chez Resend. Sans `RESEND_API_KEY`, les e-mails sont journalisés (`notification_logs`) mais non envoyés ; l'interface du guichet l'indique et garde le lien sécurisé à transmettre. Si Resend refuse l'envoi, vérifier la clé, le domaine expéditeur et l'adresse destinataire dans les journaux Resend.
 
 ## 6. Domaine et HTTPS
 Pointer le domaine (CNAME/A) vers l'hébergeur ; HTTPS automatique (Render, Fly, Cloudflare) ou Caddy/Nginx + Let's Encrypt sur VPS. HTTPS est **obligatoire** : cookies `Secure`, caméra du scanner, HSTS. Derrière un proxy, transmettre `X-Forwarded-For` / `X-Forwarded-Host`.

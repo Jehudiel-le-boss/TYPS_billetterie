@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { qrContrastOk } from '../composables/useQrPreview'
 import { sanitizeEventDescription } from '../server/utils/rich-content'
 import { htmlToPlainText, isRichTextEmpty, toEditorHtml } from '../shared/rich-text'
 import { getCountdownValues } from '../shared/countdown'
 import { openStreetMapEmbedUrl, parseMapCoordinates } from '../shared/map-location'
+import { resolveGoogleMapsCoordinates } from '../server/services/google-maps'
 import { eventTheme, themeById } from '../shared/themes'
 import { categorySchema, eventCreateSchema, richDescriptionSchema } from '../shared/validation'
 
@@ -95,6 +96,31 @@ describe('contenu des événements', () => {
     expect(parseMapCoordinates('https://www.google.com/maps/@6.3703,2.3912/data=!2d2.3912!3d6.3703')).toEqual({ lat: 6.3703, lng: 2.3912 })
     expect(parseMapCoordinates('91, 2')).toBeNull()
     expect(parseMapCoordinates('lien sans coordonnées')).toBeNull()
+  })
+
+  it('lit les coordonnées du code intégré Google Maps et résout les liens courts', async () => {
+    const iframe = '<iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3965!2d2.4059565745284566!3d6.364304693625775"></iframe>'
+    expect(parseMapCoordinates(iframe)).toEqual({ lat: 6.364304693625775, lng: 2.4059565745284566 })
+
+    const request = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: 'https://www.google.com/maps/place/ENEAM/@6.3643,2.4060,15z' } }))
+      .mockImplementationOnce(async (url: URL) => {
+        const response = new Response(null, { status: 200 })
+        Object.defineProperty(response, 'url', { value: url.href })
+        return response
+      })
+    await expect(resolveGoogleMapsCoordinates('https://maps.app.goo.gl/uMfmNi5vcpfqqpcL8', request))
+      .resolves.toEqual({ lat: 6.3643, lng: 2.406 })
+    expect(request).toHaveBeenCalledTimes(2)
+  })
+
+  it('ne suit pas une redirection de lien court vers un hôte arbitraire', async () => {
+    const request = vi.fn().mockResolvedValue(new Response(null, {
+      status: 302,
+      headers: { location: 'http://127.0.0.1/admin' }
+    }))
+    await expect(resolveGoogleMapsCoordinates('https://maps.app.goo.gl/example', request)).resolves.toBeNull()
+    expect(request).toHaveBeenCalledTimes(1)
   })
 
   it('produit une URL de carte OpenStreetMap limitée à des coordonnées valides', () => {
