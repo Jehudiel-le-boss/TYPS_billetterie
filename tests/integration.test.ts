@@ -15,6 +15,7 @@ import { getPlatformFeatures, setPlatformFeatures } from '../server/services/set
 import { notifyOrganizationManagers } from '../server/services/notifications'
 import { buildContext } from '../server/services/ticket-render'
 import { defaultLayout } from '../shared/template'
+import { organizationAsset } from '../server/services/assets'
 
 let db: Db
 beforeAll(async () => { db = await makeDb() })
@@ -32,6 +33,29 @@ describe('contrôle des fonctionnalités et notifications', () => {
     await setPlatformFeatures(db, f.user.id, changed)
     expect(await getPlatformFeatures(db)).toEqual(changed)
     await setPlatformFeatures(db, f.user.id, defaults)
+  })
+
+  describe('propriété des fichiers d’organisation', () => {
+    it('accepte une affiche Cloudinary par enregistrement et refuse les clés sans asset correspondant', async () => {
+      const owner = await fixture(db)
+      const other = await fixture(db)
+      const storageKey = `cld:org/${owner.org.id}/poster/image-test.jpg`
+      await db.insert(s.ticketTemplateAssets).values({
+        organizationId: owner.org.id,
+        kind: 'poster',
+        storageKey,
+        mime: 'image/jpeg',
+        bytes: 128,
+        width: 320,
+        height: 180,
+        createdBy: owner.user.id
+      })
+
+      await expect(organizationAsset(db, owner.org.id, storageKey, 'poster')).resolves.toMatchObject({ id: expect.any(String) })
+      await expect(organizationAsset(db, other.org.id, storageKey, 'poster')).resolves.toBeNull()
+      await expect(organizationAsset(db, owner.org.id, storageKey, 'background')).resolves.toBeNull()
+      await expect(organizationAsset(db, owner.org.id, 'org/' + owner.org.id + '/poster/unregistered.jpg', 'poster')).resolves.toBeNull()
+    })
   })
 
   it('notifie les gestionnaires d’organisation et respecte la désactivation admin', async () => {

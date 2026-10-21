@@ -16,10 +16,14 @@ const assets = ref<Record<string, string>>({}); const qr = ref<Record<string, st
 const stageBox = ref<HTMLElement>()
 const stageCanvas = ref<HTMLElement>()
 const propertiesPanel = ref<HTMLElement>()
+const editorWorkspace = ref<HTMLElement>()
 const leftPanelVisible = ref(true)
 const rightPanelVisible = ref(true)
 const leftPanelWidth = ref(280)
 const rightPanelWidth = ref(300)
+const wideEditor = ref(false)
+const desktopPanelVisibility = { left: true, right: true }
+let panelResize: { side: 'left' | 'right'; startX: number; startWidth: number } | null = null
 const previewContext = reactive<TicketContext>({ ...SAMPLE_CONTEXT })
 const previewPdfBusy = ref(false)
 const previewPdfError = ref('')
@@ -58,7 +62,99 @@ async function loadAssets() {
   const failed = results.some((result) => result.status === 'rejected')
   if (failed) toast.err('Une ou plusieurs images du modèle ne peuvent pas être chargées. Vérifie la configuration de stockage et réessaie.')
 }
-function fit() { const w = stageBox.value?.clientWidth ?? 800; zoom.value = Math.min(1.4, Math.max(0.2, (w - 48) / layout.value.width)) }
+function fit() {
+  if (!layout.value) return
+  const w = stageBox.value?.clientWidth ?? 800
+  zoom.value = Math.min(1.4, Math.max(0.2, (w - 48) / layout.value.width))
+}
+function setPanelVisible(side: 'left' | 'right', visible: boolean) {
+  if (!wideEditor.value && visible) {
+    if (side === 'left') rightPanelVisible.value = false
+    else leftPanelVisible.value = false
+  }
+  if (side === 'left') leftPanelVisible.value = visible
+  else rightPanelVisible.value = visible
+  if (wideEditor.value) desktopPanelVisibility[side] = visible
+  nextTick(() => {
+    if (wideEditor.value) {
+      setPanelWidth('left', leftPanelWidth.value)
+      setPanelWidth('right', rightPanelWidth.value)
+    }
+    fit()
+  })
+}
+function togglePanel(side: 'left' | 'right') {
+  setPanelVisible(side, !(side === 'left' ? leftPanelVisible.value : rightPanelVisible.value))
+}
+function updateEditorViewport() {
+  const nextWide = window.innerWidth >= 1280
+  if (nextWide !== wideEditor.value) {
+    if (nextWide) {
+      wideEditor.value = true
+      leftPanelVisible.value = desktopPanelVisibility.left
+      rightPanelVisible.value = desktopPanelVisibility.right
+      if (!leftPanelVisible.value && !rightPanelVisible.value) leftPanelVisible.value = true
+    } else {
+      desktopPanelVisibility.left = leftPanelVisible.value
+      desktopPanelVisibility.right = rightPanelVisible.value
+      wideEditor.value = false
+      leftPanelVisible.value = false
+      rightPanelVisible.value = false
+    }
+  }
+  nextTick(() => {
+    if (wideEditor.value) {
+      setPanelWidth('left', leftPanelWidth.value)
+      setPanelWidth('right', rightPanelWidth.value)
+    }
+    fit()
+  })
+}
+function panelWidthLimit(side: 'left' | 'right') {
+  const min = side === 'left' ? 220 : 240
+  const otherWidth = side === 'left'
+    ? (rightPanelVisible.value ? rightPanelWidth.value : 0)
+    : (leftPanelVisible.value ? leftPanelWidth.value : 0)
+  const viewportWidth = typeof window === 'undefined' ? 1280 : window.innerWidth
+  const available = (editorWorkspace.value?.clientWidth ?? viewportWidth) - otherWidth - 440 - 16
+  return { min, max: Math.max(min, Math.min(440, available)) }
+}
+function setPanelWidth(side: 'left' | 'right', width: number) {
+  const { min, max } = panelWidthLimit(side)
+  const bounded = Math.round(Math.max(min, Math.min(max, width)))
+  if (side === 'left') leftPanelWidth.value = bounded
+  else rightPanelWidth.value = bounded
+}
+function startPanelResize(event: PointerEvent, side: 'left' | 'right') {
+  if (!wideEditor.value) return
+  event.preventDefault()
+  panelResize = { side, startX: event.clientX, startWidth: side === 'left' ? leftPanelWidth.value : rightPanelWidth.value }
+  document.documentElement.classList.add('ticket-panel-resizing')
+  window.addEventListener('pointermove', movePanelResize)
+  window.addEventListener('pointerup', endPanelResize)
+  window.addEventListener('pointercancel', endPanelResize)
+}
+function movePanelResize(event: PointerEvent) {
+  if (!panelResize) return
+  const delta = event.clientX - panelResize.startX
+  setPanelWidth(panelResize.side, panelResize.startWidth + (panelResize.side === 'left' ? delta : -delta))
+}
+function endPanelResize() {
+  panelResize = null
+  document.documentElement.classList.remove('ticket-panel-resizing')
+  window.removeEventListener('pointermove', movePanelResize)
+  window.removeEventListener('pointerup', endPanelResize)
+  window.removeEventListener('pointercancel', endPanelResize)
+  nextTick(fit)
+}
+function onPanelSplitterKeydown(event: KeyboardEvent, side: 'left' | 'right') {
+  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+  event.preventDefault()
+  event.stopPropagation()
+  const current = side === 'left' ? leftPanelWidth.value : rightPanelWidth.value
+  const delta = event.key === 'ArrowRight' ? 20 : -20
+  setPanelWidth(side, current + (side === 'left' ? delta : -delta))
+}
 
 function add(e: Partial<TplElement> & { type: TplElement['type'] }) {
   snapshot()
@@ -66,7 +162,8 @@ function add(e: Partial<TplElement> & { type: TplElement['type'] }) {
   const full = { ...base, ...e } as TplElement
   layout.value.elements.push(full)
   sel.value = full.id
-  if (window.matchMedia('(max-width: 1023px)').matches) {
+  if (window.matchMedia('(max-width: 1279px)').matches) {
+    setPanelVisible('right', true)
     nextTick(() => propertiesPanel.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
 }
@@ -163,7 +260,18 @@ function onMove(ev: PointerEvent) {
     Object.assign(e, { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h) })
   }
 }
-function endDrag() { drag = null; guides.value = []; window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', endDrag); window.removeEventListener('pointercancel', endDrag) }
+function endDrag() {
+  const selected = Boolean(drag)
+  drag = null
+  guides.value = []
+  window.removeEventListener('pointermove', onMove)
+  window.removeEventListener('pointerup', endDrag)
+  window.removeEventListener('pointercancel', endDrag)
+  if (selected && window.matchMedia('(max-width: 1279px)').matches) {
+    setPanelVisible('right', true)
+    nextTick(() => propertiesPanel.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
+}
 function onKey(ev: KeyboardEvent) {
   const t = ev.target as HTMLElement; if (['INPUT', 'SELECT', 'TEXTAREA'].includes(t.tagName)) return
   const mod = ev.ctrlKey || ev.metaKey
@@ -274,7 +382,24 @@ async function previewPdf() {
     previewPdfBusy.value = false
   }
 }
-onBeforeUnmount(() => { clearTimeout(timer); clearTimeout(paletteHoldTimer); window.removeEventListener('pointermove', moveFieldPress); if (saveState.value === 'dirty') save() })
+onMounted(() => {
+  wideEditor.value = window.innerWidth >= 1280
+  if (!wideEditor.value) {
+    desktopPanelVisibility.left = leftPanelVisible.value
+    desktopPanelVisibility.right = rightPanelVisible.value
+    leftPanelVisible.value = false
+    rightPanelVisible.value = false
+  }
+  window.addEventListener('resize', updateEditorViewport)
+})
+onBeforeUnmount(() => {
+  clearTimeout(timer)
+  clearTimeout(paletteHoldTimer)
+  window.removeEventListener('pointermove', moveFieldPress)
+  window.removeEventListener('resize', updateEditorViewport)
+  endPanelResize()
+  if (saveState.value === 'dirty') save()
+})
 const stateText = computed(() => ({ saved: savedAt.value ? `Enregistré à ${savedAt.value.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}` : 'À jour', saving: 'Enregistrement…', dirty: 'Modifications non enregistrées', error: 'Échec de l’enregistrement' })[saveState.value])
 const handles = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
 const hpos = (h: string) => ({ left: h.includes('w') ? '0%' : h.includes('e') ? '100%' : '50%', top: h.includes('n') ? '0%' : h.includes('s') ? '100%' : '50%', cursor: `${h}-resize` })
@@ -283,7 +408,7 @@ const hpos = (h: string) => ({ left: h.includes('w') ? '0%' : h.includes('e') ? 
 <template>
   <div v-if="error" class="p-8"><UiEmpty title="Modèle introuvable" text="Il n’existe pas ou vous n’y avez pas accès." /></div>
   <div v-else-if="!layout" class="p-8"><div class="skeleton h-[60vh]" /></div>
-  <div v-else class="flex min-h-[calc(100dvh-4rem)] flex-col lg:h-[calc(100dvh-4rem)] lg:min-h-[560px]" @keydown="onKey">
+  <div v-else class="flex min-h-[calc(100dvh-4rem)] flex-col xl:h-[calc(100dvh-4rem)] xl:min-h-[560px]" @keydown="onKey">
     <!-- Barre d'outils -->
     <div class="flex flex-wrap items-center gap-2 border-b border-line bg-surface/60 px-3 py-2 backdrop-blur">
       <NuxtLink to="/app/studio" class="btn btn-ghost !min-h-[40px] px-3" aria-label="Retour au Studio">←</NuxtLink>
@@ -303,14 +428,18 @@ const hpos = (h: string) => ({ left: h.includes('w') ? '0%' : h.includes('e') ? 
       </div>
     </div>
 
-    <div class="flex flex-wrap items-center gap-3 border-b border-line bg-surface/40 px-3 py-2">
-      <button type="button" class="btn btn-ghost !min-h-[38px] text-xs" :aria-pressed="leftPanelVisible" @click="leftPanelVisible = !leftPanelVisible">{{ leftPanelVisible ? 'Masquer les éléments' : 'Afficher les éléments' }}</button>
-      <button type="button" class="btn btn-ghost !min-h-[38px] text-xs" :aria-pressed="rightPanelVisible" @click="rightPanelVisible = !rightPanelVisible">{{ rightPanelVisible ? 'Masquer les propriétés' : 'Afficher les propriétés' }}</button>
+    <div class="flex flex-wrap items-center gap-2 border-b border-line bg-surface/40 px-3 py-2">
+      <span class="mr-1 text-xs font-semibold uppercase tracking-wide text-muted">Panneaux</span>
+      <button type="button" class="btn btn-ghost !min-h-[38px] !rounded-xl !px-3 text-xs" :class="leftPanelVisible ? 'border-accent bg-accent/10 text-accent' : ''" :aria-pressed="leftPanelVisible" @click="togglePanel('left')"><span aria-hidden="true">☷</span>{{ leftPanelVisible ? 'Champs ouverts' : 'Champs' }}</button>
+      <button type="button" class="btn btn-ghost !min-h-[38px] !rounded-xl !px-3 text-xs" :class="rightPanelVisible ? 'border-accent bg-accent/10 text-accent' : ''" :aria-pressed="rightPanelVisible" @click="togglePanel('right')"><span aria-hidden="true">⚙</span>{{ rightPanelVisible ? 'Propriétés ouvertes' : 'Propriétés' }}</button>
     </div>
-    <div class="grid flex-none grid-cols-1 lg:min-h-0 lg:flex-1 lg:grid-cols-[var(--ticket-left-width)_minmax(0,1fr)_var(--ticket-right-width)]" :style="{ '--ticket-left-width': leftPanelVisible ? `${leftPanelWidth}px` : '0px', '--ticket-right-width': rightPanelVisible ? `${rightPanelWidth}px` : '0px' }">
+    <div ref="editorWorkspace" class="grid flex-none grid-cols-1 xl:min-h-0 xl:flex-1 xl:grid-cols-[var(--ticket-left-width)_var(--ticket-left-gutter)_minmax(0,1fr)_var(--ticket-right-gutter)_var(--ticket-right-width)]" :style="{ '--ticket-left-width': leftPanelVisible ? `${leftPanelWidth}px` : '0px', '--ticket-left-gutter': leftPanelVisible ? '8px' : '0px', '--ticket-right-width': rightPanelVisible ? `${rightPanelWidth}px` : '0px', '--ticket-right-gutter': rightPanelVisible ? '8px' : '0px' }">
       <!-- Éléments -->
-      <aside v-if="leftPanelVisible" class="order-2 min-w-0 border-line bg-surface/40 p-4 pb-8 lg:order-1 lg:min-h-0 lg:overflow-y-auto lg:border-r" aria-label="Éléments du billet">
-        <label class="mb-3 hidden text-xs text-muted lg:block">Largeur du panneau · {{ leftPanelWidth }} px<input v-model.number="leftPanelWidth" type="range" min="220" max="400" step="10" class="w-full accent-[rgb(var(--c-a))]" aria-label="Largeur du panneau des éléments"></label>
+      <aside v-if="leftPanelVisible" class="order-2 min-w-0 border-line bg-surface/40 p-4 pb-8 xl:order-1 xl:col-start-1 xl:row-start-1 xl:min-h-0 xl:overflow-y-auto xl:border-r" aria-label="Éléments du billet">
+        <div class="mb-4 flex items-center justify-between gap-3 border-b border-line pb-3">
+          <div><p class="text-sm font-bold">Champs et éléments</p><p class="mt-0.5 text-xs text-muted">Ajouter au billet</p></div>
+          <button type="button" class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-lg text-muted transition hover:bg-line/50 hover:text-fg" aria-label="Fermer le panneau des champs" title="Fermer le panneau" @click="setPanelVisible('left', false)">×</button>
+        </div>
         <p class="label">Champs dynamiques</p>
         <div class="grid grid-cols-2 gap-1.5"><button v-for="f in FIELD_KEYS.filter((k) => k !== 'organizer_logo' && k !== 'vip_badge')" :key="f" draggable="true" class="touch-none min-h-10 rounded-lg border border-line px-2 py-2 text-left text-xs font-medium hover:border-accent active:border-accent" :aria-label="`${FIELD_LABELS[f]} : appuyer pour ajouter ou glisser sur le billet`" @click="insertPaletteField(f)" @pointerdown="startFieldPress($event, f)" @dragstart="dragFieldStart($event, f)">{{ FIELD_LABELS[f] }} <span class="float-right text-muted" aria-hidden="true">⋮⋮</span></button></div>
         <p class="mt-2 text-xs text-muted">Ordinateur : glisse un champ sur le billet. Téléphone : maintiens le doigt 0,45 s puis dépose-le. Un appui simple l’ajoute aussi.</p>
@@ -363,7 +492,8 @@ const hpos = (h: string) => ({ left: h.includes('w') ? '0%' : h.includes('e') ? 
       </aside>
 
       <!-- Scène -->
-      <main ref="stageBox" class="order-1 min-h-[45vh] overflow-auto bg-[radial-gradient(circle_at_50%_0%,rgb(var(--c-b)/.12),transparent_60%)] p-6 lg:order-2 lg:min-h-0" tabindex="0" aria-label="Zone d’édition du billet" @pointerdown="sel = null" @dragover.prevent @drop="dropField">
+      <button v-if="leftPanelVisible" type="button" class="ticket-panel-splitter hidden xl:col-start-2 xl:row-start-1 xl:flex" role="separator" aria-orientation="vertical" aria-label="Redimensionner le panneau des champs" :aria-valuenow="leftPanelWidth" :aria-valuemin="panelWidthLimit('left').min" :aria-valuemax="panelWidthLimit('left').max" tabindex="0" @pointerdown="startPanelResize($event, 'left')" @keydown="onPanelSplitterKeydown($event, 'left')"><span /></button>
+      <main ref="stageBox" class="order-1 min-h-[48vh] min-w-0 overflow-auto bg-[radial-gradient(circle_at_50%_0%,rgb(var(--c-b)/.12),transparent_60%)] p-3 sm:p-5 xl:order-3 xl:col-start-3 xl:row-start-1 xl:min-h-0" tabindex="0" aria-label="Zone d’édition du billet" @pointerdown="sel = null" @dragover.prevent @drop="dropField">
         <div v-if="mode === 'edit'" class="mx-auto" :style="{ width: layout.width * zoom + 'px', height: layout.height * zoom + 'px' }">
           <div ref="stageCanvas" class="relative origin-top-left shadow-deep" :style="{ width: layout.width + 'px', height: layout.height + 'px', transform: `scale(${zoom})` }">
             <TicketRender :layout="layout" :ctx="previewContext" :qr="qr" :assets="assets" />
@@ -379,9 +509,13 @@ const hpos = (h: string) => ({ left: h.includes('w') ? '0%' : h.includes('e') ? 
       </main>
 
       <!-- Propriétés -->
-      <aside v-if="rightPanelVisible" ref="propertiesPanel" class="order-3 min-w-0 border-line bg-surface/40 p-4 pb-8 lg:min-h-0 lg:overflow-y-auto lg:border-l" aria-label="Propriétés">
-        <label class="mb-3 hidden text-xs text-muted lg:block">Largeur du panneau · {{ rightPanelWidth }} px<input v-model.number="rightPanelWidth" type="range" min="240" max="400" step="10" class="w-full accent-[rgb(var(--c-a))]" aria-label="Largeur du panneau des propriétés"></label>
-        <div v-if="!el"><p class="font-display text-sm font-bold">Propriétés</p><p class="hint">Sélectionnez un élément sur le billet pour modifier sa position, sa taille, sa couleur…</p><p class="hint mt-3">Raccourcis : flèches (±1, Maj ±10), Suppr, Ctrl+Z / Y, Ctrl+D.</p></div>
+      <button v-if="rightPanelVisible" type="button" class="ticket-panel-splitter hidden xl:col-start-4 xl:row-start-1 xl:flex" role="separator" aria-orientation="vertical" aria-label="Redimensionner le panneau des propriétés" :aria-valuenow="rightPanelWidth" :aria-valuemin="panelWidthLimit('right').min" :aria-valuemax="panelWidthLimit('right').max" tabindex="0" @pointerdown="startPanelResize($event, 'right')" @keydown="onPanelSplitterKeydown($event, 'right')"><span /></button>
+      <aside v-if="rightPanelVisible" ref="propertiesPanel" class="order-3 min-w-0 border-line bg-surface/40 p-4 pb-8 xl:col-start-5 xl:row-start-1 xl:min-h-0 xl:overflow-y-auto xl:border-l" aria-label="Propriétés">
+        <div class="mb-4 flex items-center justify-between gap-3 border-b border-line pb-3">
+          <div><p class="text-sm font-bold">Propriétés</p><p class="mt-0.5 text-xs text-muted">{{ el ? 'Réglages de l’élément sélectionné' : 'Sélectionne un élément du billet' }}</p></div>
+          <button type="button" class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-lg text-muted transition hover:bg-line/50 hover:text-fg" aria-label="Fermer le panneau des propriétés" title="Fermer le panneau" @click="setPanelVisible('right', false)">×</button>
+        </div>
+        <div v-if="!el"><p class="hint">Sélectionnez un élément sur le billet pour modifier sa position, sa taille, sa couleur…</p><p class="hint mt-3">Raccourcis : flèches (±1, Maj ±10), Suppr, Ctrl+Z / Y, Ctrl+D.</p></div>
         <div v-else class="space-y-3">
           <div><p class="font-display text-sm font-bold">{{ label(el) }}</p><span class="chip mt-1">{{ objectType(el) }}</span></div>
           <label class="block text-xs text-muted">Nom personnalisé<input v-model="el.name" class="input !min-h-[38px]" placeholder="Ex. QR entrée VIP" @focus="snapshot()"></label>

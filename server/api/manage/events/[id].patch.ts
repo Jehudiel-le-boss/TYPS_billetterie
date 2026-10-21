@@ -4,6 +4,7 @@ import { api, parseBody, uuidParam } from '~~/server/utils/api'
 import { useDb } from '~~/server/utils/db'
 import { requireEvent } from '~~/server/utils/access'
 import { events, eventLocations } from '~~/server/db/schema'
+import { organizationAsset } from '~~/server/services/assets'
 import { hashPassword } from '~~/server/utils/crypto'
 import { audit } from '~~/server/utils/audit'
 import { sanitizeEventDescription } from '~~/server/utils/rich-content'
@@ -28,7 +29,13 @@ export default api(async (e) => {
   const set: Record<string, unknown> = { ...rest, updatedAt: new Date() }
   if (description !== undefined) set.description = sanitizeEventDescription(description)
   if (accessCode !== undefined) set.accessCodeHash = accessCode ? await hashPassword(accessCode) : null
-  if (posterKey !== undefined) { if (posterKey && !posterKey.startsWith(`org/${event.organizationId}/`)) throw createError({ statusCode: 403, statusMessage: 'Fichier hors de votre organisation' }); set.posterKey = posterKey }
+  if (posterKey !== undefined) {
+    if (posterKey) {
+      const poster = await organizationAsset(db, event.organizationId, posterKey, 'poster')
+      if (!poster) throw createError({ statusCode: 403, statusMessage: 'Affiche introuvable ou non autorisée pour cette organisation.' })
+    }
+    set.posterKey = posterKey
+  }
   await db.update(events).set(set).where(eq(events.id, event.id))
   if ([venueName, address, city, lat, lng].some((v) => v !== undefined)) await db.update(eventLocations).set({ ...(venueName !== undefined && { venueName }), ...(address !== undefined && { address }), ...(city !== undefined && { city }), ...(lat !== undefined && { lat }), ...(lng !== undefined && { lng }) }).where(eq(eventLocations.eventId, event.id))
   await audit(db, { actorId: user.id, organizationId: event.organizationId, action: 'event.update', entityType: 'event', entityId: event.id, meta: { fields: Object.keys(b) } })

@@ -13,6 +13,7 @@
   ::-webkit-scrollbar-track { background: rgb(var(--c-bg)); }
   ::-webkit-scrollbar-thumb { border: 3px solid rgb(var(--c-bg)); border-radius: 999px; background: linear-gradient(180deg, rgb(var(--c-a)), rgb(var(--c-b))); }
   ::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, rgb(var(--c-b)), rgb(var(--c-a))); }
+  .ticket-panel-resizing, .ticket-panel-resizing * { cursor: col-resize !important; user-select: none !important; }
   body { min-height: 100dvh; background: rgb(var(--c-bg)); }
   :focus-visible { outline: 2px solid rgb(var(--c-a)); outline-offset: 3px; border-radius: 6px; }
   ::selection { background: rgb(var(--c-a) / .35); }
@@ -28,6 +29,11 @@
   .btn-ghost { @apply border border-line bg-surface/40 text-fg hover:border-accent hover:text-accent; }
   .btn-danger { @apply border border-red-500/50 bg-red-500/10 text-red-300 hover:bg-red-500/20; }
   .input { @apply min-h-[44px] w-full rounded-xl border border-line bg-bg/60 px-3.5 text-[15px] text-fg placeholder:text-muted/70 transition focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30; }
+  .ticket-panel-splitter { @apply relative h-full w-2 touch-none items-center justify-center border-0 bg-transparent p-0 outline-none; cursor: col-resize; }
+  .ticket-panel-splitter::before { content: ''; @apply absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-line transition-colors; }
+  .ticket-panel-splitter span { @apply relative z-10 h-12 w-1 rounded-full bg-muted/60 transition-all; }
+  .ticket-panel-splitter:hover::before, .ticket-panel-splitter:focus-visible::before { @apply w-0.5 bg-accent; }
+  .ticket-panel-splitter:hover span, .ticket-panel-splitter:focus-visible span { @apply w-1.5 bg-accent; }
   .label { @apply mb-1.5 block text-sm font-semibold text-fg; }
   .label:has(+ input[required])::after { content: ' *'; color: #f87171; }
   .hint { @apply mt-1 text-sm text-muted; }
