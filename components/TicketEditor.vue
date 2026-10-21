@@ -2,6 +2,7 @@
 // Éditeur visuel de billets : glisser-déposer, redimensionnement, calques, magnétisme, annulation, import PNG/JPG/PDF, enregistrement auto.
 import Draggable from 'vuedraggable'
 import { DATE_FORMATS, FIELD_LABELS, FIELD_KEYS, PRINT_FORMATS, SAMPLE_CONTEXT, elementNameLabel, elementTypeLabel, uid, type TemplateLayout, type TicketContext, type TplElement } from '~~/shared/template'
+import { prepareImageUpload } from '~~/shared/image-upload'
 import { THEMES } from '~~/shared/themes'
 const props = defineProps<{ templateId: string }>()
 const toast = useToast()
@@ -15,6 +16,10 @@ const assets = ref<Record<string, string>>({}); const qr = ref<Record<string, st
 const stageBox = ref<HTMLElement>()
 const stageCanvas = ref<HTMLElement>()
 const propertiesPanel = ref<HTMLElement>()
+const leftPanelVisible = ref(true)
+const rightPanelVisible = ref(true)
+const leftPanelWidth = ref(280)
+const rightPanelWidth = ref(300)
 const previewContext = reactive<TicketContext>({ ...SAMPLE_CONTEXT })
 const previewPdfBusy = ref(false)
 const previewPdfError = ref('')
@@ -43,7 +48,16 @@ async function save(): Promise<boolean> {
   try { await api(`/api/templates/${props.templateId}`, { method: 'PUT', body: { name: tpl.value!.name, layout: layout.value } }); saveState.value = 'saved'; savedAt.value = new Date(); return true } catch (e) { saveState.value = 'error'; toast.err(errMsg(e)); return false }
 }
 async function refreshQr() { qr.value = await qrMapFor(layout.value) }
-async function loadAssets() { await refreshQr(); const ids = [layout.value.background.assetId, ...layout.value.elements.map((x) => (x.type === 'image' ? x.assetId : null))].filter(Boolean) as string[]; for (const id of ids) if (!assets.value[id]) api<{ url: string }>(`/api/assets/${id}/url`).then((r) => { assets.value[id] = r.url }).catch(() => {}) }
+async function loadAssets() {
+  await refreshQr()
+  const ids = [layout.value.background.assetId, ...layout.value.elements.map((x) => (x.type === 'image' ? x.assetId : null))].filter(Boolean) as string[]
+  const results = await Promise.allSettled(ids.filter((id) => !assets.value[id]).map(async (id) => {
+    const asset = await api<{ url: string }>(`/api/assets/${id}/url`)
+    assets.value[id] = asset.url
+  }))
+  const failed = results.some((result) => result.status === 'rejected')
+  if (failed) toast.err('Une ou plusieurs images du modèle ne peuvent pas être chargées. Vérifie la configuration de stockage et réessaie.')
+}
 function fit() { const w = stageBox.value?.clientWidth ?? 800; zoom.value = Math.min(1.4, Math.max(0.2, (w - 48) / layout.value.width)) }
 
 function add(e: Partial<TplElement> & { type: TplElement['type'] }) {
@@ -166,10 +180,17 @@ async function upload(blob: Blob, kind: string, name = 'image.png') {
     toast.err('Le modèle n’est pas encore chargé. Réessaie dans un instant.')
     return null
   }
+  let prepared: Blob
+  try {
+    prepared = await prepareImageUpload(blob)
+  } catch (error) {
+    toast.err(error instanceof Error ? error.message : 'La préparation de l’image a échoué.')
+    return null
+  }
   const fd = new FormData()
   fd.append('orgId', tpl.value.organizationId)
   fd.append('kind', kind)
-  fd.append('file', blob, name)
+  fd.append('file', prepared, name)
   uploading.value = true
   try {
     const r = await $fetch<{ id: string; width: number; height: number; url: string }>('/api/uploads', { method: 'POST', body: fd })
@@ -186,22 +207,23 @@ async function upload(blob: Blob, kind: string, name = 'image.png') {
 }
 async function onBackground(ev: Event) {
   const f = (ev.target as HTMLInputElement).files?.[0]; (ev.target as HTMLInputElement).value = ''; if (!f) return
-  if (f.size > 6 * 1024 * 1024) return toast.err('Fichier trop volumineux (6 Mo maximum)')
   if (f.type === 'application/pdf') return openPdf(f)
   if (!['image/png', 'image/jpeg'].includes(f.type)) return toast.err('Formats acceptés : PNG, JPG, PDF')
   const r = await upload(f, 'background', f.name); if (r) setBackground(r)
 }
 function setBackground(r: { id: string; width: number; height: number }) { snapshot(); layout.value.background.assetId = r.id; if (fitFormat.value) { const w = Math.min(1200, r.width); layout.value.width = w; layout.value.height = Math.round((w * r.height) / r.width); nextTick(fit) } }
 async function openPdf(f: File) {
+  if (f.size > 25 * 1024 * 1024) return toast.err('PDF trop volumineux (25 Mo maximum).')
   try {
     const pdfjs = await import('pdfjs-dist'); pdfjs.GlobalWorkerOptions.workerSrc = (await import('pdfjs-dist/build/pdf.worker.min.mjs?url')).default
     const buf = await f.arrayBuffer(); const doc = await pdfjs.getDocument({ data: buf.slice(0) }).promise
+    if (doc.numPages > 100) return toast.err('PDF trop long (100 pages maximum).')
     Object.assign(pdf, { open: true, doc, pages: doc.numPages, page: 1, buf }); await nextTick(); renderPdf(0.5)
   } catch { toast.err('PDF illisible ou protégé') }
 }
 async function renderPdf(scale: number, c = pdfCanvas.value) { const page = await pdf.doc.getPage(pdf.page); const vp0 = page.getViewport({ scale: 1 }); const factor = scale === 0.5 ? 360 / vp0.width : Math.min(1200 / vp0.width, 1600 / vp0.height); const vp = page.getViewport({ scale: factor }); const cv = c ?? document.createElement('canvas'); cv.width = vp.width; cv.height = vp.height; await page.render({ canvasContext: cv.getContext('2d')!, viewport: vp, canvas: cv } as any).promise; return cv }
 watch(() => pdf.page, () => { if (pdf.open) renderPdf(0.5) })
-async function usePdfPage() { const cv = await renderPdf(1); const blob: Blob | null = await new Promise((r) => cv.toBlob(r, 'image/png')); if (!blob) return toast.err('La page PDF n’a pas pu être convertie en image.'); if (blob.size > 6 * 1024 * 1024) return toast.err('Cette page PDF est trop lourde après conversion (6 Mo maximum). Choisis une page moins complexe.'); const r = await upload(blob, 'background', 'pdf-page.png'); if (r) { pdf.open = false; setBackground(r) } }
+async function usePdfPage() { const cv = await renderPdf(1); const blob: Blob | null = await new Promise((r) => cv.toBlob(r, 'image/png')); if (!blob) return toast.err('La page PDF n’a pas pu être convertie en image.'); const r = await upload(blob, 'background', 'pdf-page.png'); if (r) { pdf.open = false; setBackground(r) } }
 async function onLogo(ev: Event) { const f = (ev.target as HTMLInputElement).files?.[0]; (ev.target as HTMLInputElement).value = ''; if (!f) return; const r = await upload(f, 'logo', f.name); if (r) add({ type: 'image', assetId: r.id, w: 120, h: Math.round((120 * r.height) / r.width), fit: 'contain' } as any) }
 
 function applyTheme(id: string) { const t = THEMES.find((x) => x.id === id); if (!t) return; snapshot(); const L = layout.value; if (!L.background.assetId) L.background.color = t.bg
@@ -281,9 +303,14 @@ const hpos = (h: string) => ({ left: h.includes('w') ? '0%' : h.includes('e') ? 
       </div>
     </div>
 
-    <div class="grid flex-none grid-cols-1 lg:min-h-0 lg:flex-1 lg:grid-cols-[270px_1fr_300px]">
+    <div class="flex flex-wrap items-center gap-3 border-b border-line bg-surface/40 px-3 py-2">
+      <button type="button" class="btn btn-ghost !min-h-[38px] text-xs" :aria-pressed="leftPanelVisible" @click="leftPanelVisible = !leftPanelVisible">{{ leftPanelVisible ? 'Masquer les éléments' : 'Afficher les éléments' }}</button>
+      <button type="button" class="btn btn-ghost !min-h-[38px] text-xs" :aria-pressed="rightPanelVisible" @click="rightPanelVisible = !rightPanelVisible">{{ rightPanelVisible ? 'Masquer les propriétés' : 'Afficher les propriétés' }}</button>
+    </div>
+    <div class="grid flex-none grid-cols-1 lg:min-h-0 lg:flex-1 lg:grid-cols-[var(--ticket-left-width)_minmax(0,1fr)_var(--ticket-right-width)]" :style="{ '--ticket-left-width': leftPanelVisible ? `${leftPanelWidth}px` : '0px', '--ticket-right-width': rightPanelVisible ? `${rightPanelWidth}px` : '0px' }">
       <!-- Éléments -->
-      <aside class="order-2 border-line bg-surface/40 p-4 pb-8 lg:order-1 lg:min-h-0 lg:overflow-y-auto lg:border-r" aria-label="Éléments du billet">
+      <aside v-if="leftPanelVisible" class="order-2 min-w-0 border-line bg-surface/40 p-4 pb-8 lg:order-1 lg:min-h-0 lg:overflow-y-auto lg:border-r" aria-label="Éléments du billet">
+        <label class="mb-3 hidden text-xs text-muted lg:block">Largeur du panneau · {{ leftPanelWidth }} px<input v-model.number="leftPanelWidth" type="range" min="220" max="400" step="10" class="w-full accent-[rgb(var(--c-a))]" aria-label="Largeur du panneau des éléments"></label>
         <p class="label">Champs dynamiques</p>
         <div class="grid grid-cols-2 gap-1.5"><button v-for="f in FIELD_KEYS.filter((k) => k !== 'organizer_logo' && k !== 'vip_badge')" :key="f" draggable="true" class="touch-none min-h-10 rounded-lg border border-line px-2 py-2 text-left text-xs font-medium hover:border-accent active:border-accent" :aria-label="`${FIELD_LABELS[f]} : appuyer pour ajouter ou glisser sur le billet`" @click="insertPaletteField(f)" @pointerdown="startFieldPress($event, f)" @dragstart="dragFieldStart($event, f)">{{ FIELD_LABELS[f] }} <span class="float-right text-muted" aria-hidden="true">⋮⋮</span></button></div>
         <p class="mt-2 text-xs text-muted">Ordinateur : glisse un champ sur le billet. Téléphone : maintiens le doigt 0,45 s puis dépose-le. Un appui simple l’ajoute aussi.</p>
@@ -309,13 +336,21 @@ const hpos = (h: string) => ({ left: h.includes('w') ? '0%' : h.includes('e') ? 
           <button class="btn btn-ghost !min-h-[40px] !rounded-lg text-xs" @click="addShape('rect')">Rectangle</button><button class="btn btn-ghost !min-h-[40px] !rounded-lg text-xs" @click="addShape('ellipse')">Ellipse</button>
           <button class="btn btn-ghost !min-h-[40px] col-span-2 !rounded-lg text-xs" :disabled="uploading" @click="logoIn?.click()">Logo / image (PNG, JPG)</button>
         </div>
+        <p class="mt-1 text-xs text-muted">Logo et images : PNG/JPG, 25 Mo avant compression (4 Mo maximum à l’envoi).</p>
         <input ref="logoIn" type="file" accept="image/png,image/jpeg" class="hidden" @change="onLogo">
         <p class="label mt-4">Fond du billet</p>
         <button class="btn btn-ghost !min-h-[40px] w-full !rounded-lg text-xs" :disabled="uploading" @click="fileIn?.click()">{{ uploading ? 'Envoi…' : 'Importer un fond PNG / JPG / PDF' }}</button>
         <input ref="fileIn" type="file" accept="image/png,image/jpeg,application/pdf" class="hidden" @change="onBackground">
         <p v-if="layout.background.assetId" class="mt-2 text-xs text-emerald-300" role="status">Fond importé : les champs et le QR restent modifiables par-dessus.</p>
-        <p class="mt-1 text-xs text-muted">PNG/JPG jusqu’à 6 Mo. Un PDF est converti en image; choisis la page à importer.</p>
+        <p class="mt-1 text-xs text-muted">PNG/JPG jusqu’à 25 Mo avant compression (4 Mo après). PDF jusqu’à 25 Mo et 100 pages; choisis la page à importer.</p>
         <label class="mt-2 flex items-center gap-2 text-xs text-muted"><input v-model="fitFormat" type="checkbox" class="accent-[rgb(var(--c-a))]"> Adapter le format du billet au modèle</label>
+        <label class="mt-2 block text-xs text-muted">Ajustement de l’image au billet
+          <select v-model="layout.background.fit" class="input mt-1" @focus="snapshot()">
+            <option value="cover">Remplir le billet (recadrer les bords)</option>
+            <option value="contain">Afficher toute l’image (marges)</option>
+            <option value="stretch">Étirer à la forme du billet</option>
+          </select>
+        </label>
         <button v-if="layout.background.assetId" class="mt-2 text-xs text-red-300 underline" @click="snapshot(); layout.background.assetId = null">Retirer l’image de fond</button>
         <label class="label mt-4" for="bgc">Couleur de fond</label><input id="bgc" v-model="layout.background.color" type="color" class="h-10 w-full rounded-lg border border-line bg-transparent" @focus="snapshot()">
         <label class="label mt-4" for="fmt">Format</label>
@@ -344,7 +379,8 @@ const hpos = (h: string) => ({ left: h.includes('w') ? '0%' : h.includes('e') ? 
       </main>
 
       <!-- Propriétés -->
-      <aside ref="propertiesPanel" class="order-3 border-line bg-surface/40 p-4 pb-8 lg:min-h-0 lg:overflow-y-auto lg:border-l" aria-label="Propriétés">
+      <aside v-if="rightPanelVisible" ref="propertiesPanel" class="order-3 min-w-0 border-line bg-surface/40 p-4 pb-8 lg:min-h-0 lg:overflow-y-auto lg:border-l" aria-label="Propriétés">
+        <label class="mb-3 hidden text-xs text-muted lg:block">Largeur du panneau · {{ rightPanelWidth }} px<input v-model.number="rightPanelWidth" type="range" min="240" max="400" step="10" class="w-full accent-[rgb(var(--c-a))]" aria-label="Largeur du panneau des propriétés"></label>
         <div v-if="!el"><p class="font-display text-sm font-bold">Propriétés</p><p class="hint">Sélectionnez un élément sur le billet pour modifier sa position, sa taille, sa couleur…</p><p class="hint mt-3">Raccourcis : flèches (±1, Maj ±10), Suppr, Ctrl+Z / Y, Ctrl+D.</p></div>
         <div v-else class="space-y-3">
           <div><p class="font-display text-sm font-bold">{{ label(el) }}</p><span class="chip mt-1">{{ objectType(el) }}</span></div>

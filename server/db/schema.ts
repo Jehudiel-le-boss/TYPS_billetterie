@@ -93,7 +93,7 @@ export const eventLocations = pgTable('event_locations', {
   lat: doublePrecision('lat'), lng: doublePrecision('lng')
 })
 export const ticketCategories = pgTable('ticket_categories', {
-  id: id(), eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }), name: text('name').notNull(), kind: categoryKind('kind').notNull().default('standard'),
+  id: id(), eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }), name: text('name').notNull(), kind: categoryKind('kind').notNull().default('standard'), customType: text('custom_type'),
   price: integer('price').notNull(), quota: integer('quota').notNull(), sold: integer('sold').notNull().default(0), reserved: integer('reserved').notNull().default(0),
   maxPerOrder: integer('max_per_order'), saleStart: ts('sale_start'), saleEnd: ts('sale_end'), validFrom: ts('valid_from'), validUntil: ts('valid_until'),
   templateId: uuid('template_id').references(() => ticketTemplates.id, { onDelete: 'set null' }),

@@ -11,6 +11,7 @@ export default api(async (e) => {
   if (!c) return fail(404, 'Catégorie introuvable', 'not_found')
   const { event } = await requireEvent(e, c.eventId, 'event:write')
   const b = await parseBody(e, categorySchema.partial())
+  if (b.kind === 'custom' && !(b.customType ?? (c.kind === 'custom' ? c.customType : null))?.trim()) return fail(422, 'Indique le nom du type personnalisé (par exemple Premium ou Accès terrasse).', 'custom_ticket_type_required')
   if (b.templateId) {
     const [template] = await useDb().select({ id: ticketTemplates.id }).from(ticketTemplates)
       .where(and(eq(ticketTemplates.id, b.templateId), eq(ticketTemplates.organizationId, event.organizationId), isNull(ticketTemplates.deletedAt))).limit(1)

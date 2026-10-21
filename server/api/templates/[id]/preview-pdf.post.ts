@@ -6,7 +6,6 @@ import { requireTemplate } from '~~/server/utils/templates'
 import { renderTicketPdf } from '~~/server/services/pdf'
 import { assetLoader } from '~~/server/services/ticket-render'
 import { sanitizeLayout, type TicketContext } from '~~/shared/template'
-import { signTicketCode } from '~~/server/utils/qr'
 
 const previewContextSchema = z.object({
   eventTitle: z.string().max(140),
@@ -34,7 +33,7 @@ export default api(async (e) => {
   const bytes = await renderTicketPdf(
     sanitizeLayout(template.draftLayout),
     context,
-    signTicketCode('00000000-0000-4000-8000-000000000000', 1),
+    'TYPS-APERÇU-NON-VALIDE',
     assetLoader(db)
   )
   setHeader(e, 'Content-Type', 'application/pdf')

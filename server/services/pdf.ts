@@ -41,7 +41,16 @@ export async function renderTicketPdf(layout: TemplateLayout, ctx: TicketContext
   page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: hex(layout.background.color) })
   if (layout.background.assetId) {
     const a = await loadAsset(layout.background.assetId)
-    if (a) { const img = await embedImage(doc, a); page.drawImage(img, { x: 0, y: 0, width: W, height: H }) }
+    if (a) {
+      const img = await embedImage(doc, a)
+      const fit = layout.background.fit ?? 'stretch'
+      if (fit === 'stretch') page.drawImage(img, { x: 0, y: 0, width: W, height: H })
+      else {
+        const scale = fit === 'cover' ? Math.max(W / img.width, H / img.height) : Math.min(W / img.width, H / img.height)
+        const width = img.width * scale, height = img.height * scale
+        page.drawImage(img, { x: (W - width) / 2, y: (H - height) / 2, width, height })
+      }
+    }
   }
   for (const el of layout.elements) if (!el.hidden) await drawElement(doc, page, el, ctx, qrPayload, layout.height, getFont, loadAsset)
   if (ctx.demo) { const f = await getFont('sans', true); page.drawText('DEMO — NON VALABLE', { x: 8, y: 6, size: 8, font: f, color: rgb(1, 0.3, 0.3), opacity: 0.9 }) }

@@ -9,6 +9,7 @@ import { fail } from '~~/server/utils/errors'
 export default api(async (e) => {
   const { user, event } = await requireEvent(e, uuidParam(e, 'id'), 'event:write')
   const b = await parseBody(e, categorySchema)
+  if (b.kind === 'custom' && !b.customType?.trim()) return fail(422, 'Indique le nom du type personnalisé (par exemple Premium ou Accès terrasse).', 'custom_ticket_type_required')
   if (b.templateId) {
     const [template] = await useDb().select({ id: ticketTemplates.id }).from(ticketTemplates)
       .where(and(eq(ticketTemplates.id, b.templateId), eq(ticketTemplates.organizationId, event.organizationId), isNull(ticketTemplates.deletedAt))).limit(1)

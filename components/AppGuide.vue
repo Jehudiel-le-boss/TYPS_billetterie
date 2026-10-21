@@ -14,7 +14,7 @@ const stepIndex = ref(0)
 const targetRect = ref<DOMRect | null>(null)
 const card = ref<HTMLElement | null>(null)
 const helpButton = ref<HTMLButtonElement | null>(null)
-const placement = ref<'top' | 'bottom'>('bottom')
+const { visible: guideVisible, load: loadGuideVisibility } = useGuideVisibility()
 let resizeObserver: ResizeObserver | null = null
 let startedWelcome = false
 let targetUpdateId = 0
@@ -22,6 +22,9 @@ let activeRole: GuideRole = 'attend'
 
 const roleNames: Record<GuideRole, string> = { attend: 'Acheteur', organize: 'Organisateur', agent: 'Agent' }
 const currentStep = computed(() => steps.value[stepIndex.value])
+const isPersonalSpace = computed(() => ['/app', '/admin', '/scan'].some((prefix) => route.path === prefix || route.path.startsWith(`${prefix}/`)))
+const showFloatingButton = computed(() => !isPersonalSpace.value || guideVisible.value)
+watch(showFloatingButton, (visible) => { if (!visible) menuOpen.value = false })
 const currentRole = computed<GuideRole>(() => {
   const saved = import.meta.client && me.value.user?.id ? localStorage.getItem(`typs-guide-intent:${me.value.user.id}`) : null
   return saved === 'organize' || saved === 'agent' ? saved : 'attend'
@@ -33,9 +36,7 @@ const cardStyle = computed(() => {
   const width = Math.min(390, window.innerWidth - 32)
   const left = Math.min(Math.max(16, r.left + r.width / 2 - width / 2), window.innerWidth - width - 16)
   const height = card.value?.offsetHeight ?? 300
-  const top = placement.value === 'bottom'
-    ? Math.min(r.bottom + 16, Math.max(16, window.innerHeight - height - 16))
-    : Math.max(16, r.top - height - 16)
+  const top = Math.min(r.bottom + 16, Math.max(16, window.innerHeight - height - 16))
   return { top: `${top}px`, left: `${left}px`, width: `${width}px` }
 })
 const spotlightStyle = computed(() => targetRect.value ? {
@@ -56,8 +57,8 @@ const discoverySteps: GuideStep[] = [
 
 const roleSteps: Record<GuideRole, GuideStep[]> = {
   attend: [
-    { eyebrow: 'Ton parcours acheteur', title: 'Explore librement.', body: 'Parcours les événements sans compte. Le prix total est présenté avant le paiement.', target: '[data-guide="buyer-explore"], [data-guide="header-explore"]' },
-    { eyebrow: 'Après le paiement', title: 'Retrouve ton billet.', body: 'Le lien sécurisé reçu à la confirmation permet de revoir et télécharger les billets, même sans compte. Ne le partage pas.' },
+    { eyebrow: 'Ton parcours acheteur', title: 'Explore librement.', body: 'Parcours les événements sans compte. Le prix total est présenté avant le paiement.', target: '[data-guide="buyer-explore"], [data-guide="header-explore"], [data-guide="home-explore"]' },
+    { eyebrow: 'Après le paiement', title: 'Retrouve ton billet.', body: 'Le lien sécurisé reçu à la confirmation permet de revoir et télécharger les billets, même sans compte. Ne le partage pas.', target: '[data-guide="nav-buyer-orders"], [data-guide="header-account"]' },
     { eyebrow: 'Ton espace acheteur', title: 'Centralise tes commandes.', body: 'Crée ou utilise un compte avec la même adresse e-mail vérifiée que celle de tes achats, puis ouvre « Mes achats » depuis « Mon espace » pour retrouver les commandes et billets.', target: '[data-guide="buyer-history"], [data-guide="nav-buyer-orders"], [data-guide="header-account"]' }
   ],
   organize: [
@@ -67,7 +68,7 @@ const roleSteps: Record<GuideRole, GuideStep[]> = {
   ],
   agent: [
     { eyebrow: 'Ton parcours agent', title: 'Les accès sont donnés par l’organisateur.', body: 'Choisir « Agent » ne confère pas automatiquement de droits. Demande à l’organisateur de t’inviter avec l’adresse de ton compte et de t’affecter à l’événement voulu.', target: '[data-guide="agent-invitation"]' },
-    { eyebrow: 'Contrôle des entrées', title: 'Ouvre uniquement un événement attribué.', body: 'Les événements disponibles dans cette liste sont ceux auxquels tu as accès. Le scan indique si le billet est valide, déjà utilisé ou refusé.', target: '[data-guide="agent-events"]' },
+    { eyebrow: 'Contrôle des entrées', title: 'Ouvre uniquement un événement attribué.', body: 'Les événements disponibles dans cette liste sont ceux auxquels tu as accès. Le scan indique si le billet est valide, déjà utilisé ou refusé.', target: '[data-guide="agent-events"], [data-guide="agent-invitation"]' },
     { eyebrow: 'Tes permissions', title: 'Un accès limité, événement par événement.', body: 'Un agent peut scanner; un vendeur peut aussi être autorisé à créer des ventes au guichet. Seul l’organisateur décide et peut retirer ces droits.', target: '[data-guide="agent-invitation"]' }
   ]
 }
@@ -118,12 +119,9 @@ async function updateTarget() {
   if (updateId !== targetUpdateId) return
   const rect = element.getBoundingClientRect()
   targetRect.value = rect
-  const cardHeight = card.value?.offsetHeight ?? 300
-  placement.value = window.innerHeight - rect.bottom > cardHeight + 32 || rect.top < cardHeight + 32 ? 'bottom' : 'top'
   await nextTick()
   const updated = element.getBoundingClientRect()
   targetRect.value = updated
-  if (placement.value === 'top' && card.value && updated.top - card.value.offsetHeight - 24 < 0) placement.value = 'bottom'
   await nextTick()
   card.value?.focus()
 }
@@ -199,8 +197,10 @@ watch([() => route.query.typsWelcome, () => me.value.user?.id], async ([value, u
   }
   await cleanWelcomeQuery()
 }, { flush: 'post' })
+watch(() => me.value.user?.id, loadGuideVisibility)
 
 onMounted(() => {
+  loadGuideVisibility()
   window.addEventListener('keydown', onKeydown)
   if (!startedWelcome && isPublicPath(route.path) && localStorage.getItem('typs-guide-discovery-v1') !== 'seen') {
     window.setTimeout(() => { if (!startedWelcome) void start('discovery') }, 700)
@@ -215,7 +215,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="fixed bottom-4 right-4 z-[70] sm:bottom-6 sm:right-6">
-    <div v-if="menuOpen" class="mb-3 w-[min(19rem,calc(100vw-2rem))] rounded-2xl border border-line bg-surface p-3 shadow-2xl" aria-label="Aide TYPS">
+    <div v-if="menuOpen" class="mb-3 max-h-[min(70vh,36rem)] w-[min(19rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-line bg-surface p-3 shadow-2xl" aria-label="Aide TYPS">
       <div class="flex items-start justify-between gap-3 px-2 pb-2">
         <div><p class="text-sm font-bold">Centre d’aide</p><p class="text-xs text-muted">Guides courts, à revoir quand tu veux.</p></div>
         <button type="button" class="rounded-lg p-1 text-muted hover:text-fg" aria-label="Fermer l’aide" @click="menuOpen = false"><X :size="18" /></button>
@@ -227,7 +227,7 @@ onBeforeUnmount(() => {
         <button v-for="role in (['attend', 'organize', 'agent'] as GuideRole[])" :key="role" type="button" class="w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-line/40" @click="start('role', role)">{{ roleNames[role] }} <span v-if="role === currentRole" class="text-xs text-accent">· mon parcours</span></button>
       </div>
     </div>
-    <button ref="helpButton" type="button" class="grid h-12 w-12 place-items-center rounded-full border border-line bg-surface text-accent shadow-xl transition hover:-translate-y-0.5 hover:border-accent focus-visible:outline-2 focus-visible:outline-accent" aria-label="Ouvrir le centre d’aide et rejouer les guides" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen">
+    <button v-if="showFloatingButton" ref="helpButton" type="button" class="grid h-12 w-12 place-items-center rounded-full border border-line bg-surface text-accent shadow-xl transition hover:-translate-y-0.5 hover:border-accent focus-visible:outline-2 focus-visible:outline-accent" aria-label="Ouvrir le centre d’aide et rejouer les guides" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen">
       <CircleHelp :size="22" />
     </button>
   </div>

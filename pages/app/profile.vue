@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { Camera, KeyRound, LoaderCircle, Save, Trash2, UserRound } from '@lucide/vue'
+import { prepareImageUpload } from '~~/shared/image-upload'
 interface Profile { fullName: string; phone: string; locale: string; avatarUrl: string | null }
 definePageMeta({ layout: 'dashboard', middleware: 'auth' }); useSeoMeta({ title: 'Mon profil', robots: 'noindex' })
 const me = useMe(); const toast = useToast()
+const guideVisibility = useGuideVisibility()
+watch(() => me.value.user?.id, () => guideVisibility.load(), { immediate: true })
 const { data: profile, refresh, pending } = await useAsyncData('account-profile', () => api<Profile>('/api/auth/profile'), { server: false })
 const form = reactive({ fullName: '', phone: '' }); watch(profile, (value) => { if (value) { form.fullName = value.fullName; form.phone = value.phone } }, { immediate: true })
 const busy = ref(false); const fileInput = ref<HTMLInputElement>()
@@ -16,7 +19,7 @@ async function uploadAvatar(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
   busy.value = true
-  try { const body = new FormData(); body.append('file', file); await api('/api/auth/avatar', { method: 'POST', body }); await refresh(); toast.ok('Photo de profil mise à jour') }
+  try { const prepared = await prepareImageUpload(file); const body = new FormData(); body.append('file', prepared, file.name); await api('/api/auth/avatar', { method: 'POST', body }); await refresh(); toast.ok('Photo de profil mise à jour') }
   catch (error) { toast.err(errMsg(error)) }
   finally { busy.value = false; if (fileInput.value) fileInput.value.value = '' }
 }
@@ -25,6 +28,9 @@ async function removeAvatar() {
   try { await api('/api/auth/avatar', { method: 'DELETE' }); await refresh(); toast.ok('Photo de profil supprimée') }
   catch (error) { toast.err(errMsg(error)) }
   finally { busy.value = false }
+}
+function toggleGuideVisibility() {
+  try { guideVisibility.setVisible(!guideVisibility.visible.value) } catch (error) { toast.err(errMsg(error)) }
 }
 </script>
 <template>
@@ -35,7 +41,7 @@ async function removeAvatar() {
       <section class="card flex flex-col items-center gap-4 p-6 text-center sm:flex-row sm:text-left">
         <img v-if="profile.avatarUrl" :src="profile.avatarUrl" alt="Photo de profil" class="h-24 w-24 rounded-full border border-line object-cover">
         <div v-else class="flex h-24 w-24 items-center justify-center rounded-full border border-line bg-surface text-muted"><UserRound :size="36" /></div>
-        <div class="flex-1"><h2 class="font-bold">Photo de profil</h2><p class="mt-1 text-sm text-muted">PNG ou JPEG, 4 Mo maximum. Elle est stockée de façon privée.</p></div>
+        <div class="flex-1"><h2 class="font-bold">Photo de profil</h2><p class="mt-1 text-sm text-muted">PNG ou JPEG, 25 Mo maximum avant compression (4 Mo maximum après). Elle est stockée de façon privée.</p></div>
         <input ref="fileInput" type="file" accept="image/png,image/jpeg" class="sr-only" @change="uploadAvatar">
         <div class="flex flex-wrap gap-2"><button class="btn btn-ghost" :disabled="busy" @click="fileInput?.click()"><Camera :size="16" />{{ profile.avatarUrl ? 'Changer la photo' : 'Ajouter une photo' }}</button><button v-if="profile.avatarUrl" class="btn btn-ghost text-red-300" :disabled="busy" @click="removeAvatar"><Trash2 :size="16" />Supprimer la photo</button></div>
       </section>
@@ -46,5 +52,9 @@ async function removeAvatar() {
         <div class="flex flex-wrap gap-3"><button class="btn btn-primary" :disabled="busy"><LoaderCircle v-if="busy" class="animate-spin" :size="16" /><Save v-else :size="16" />Enregistrer le profil</button><NuxtLink to="/auth/forgot" class="btn btn-ghost"><KeyRound :size="16" />Changer le mot de passe</NuxtLink></div>
       </form>
     </template>
+    <section class="card flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+      <div><h2 class="font-bold">Bouton d’aide flottant</h2><p class="mt-1 text-sm text-muted">Choisis si le bouton d’aide reste visible en bas de l’écran dans ton espace personnel.</p></div>
+      <button type="button" class="btn btn-ghost shrink-0" :aria-pressed="guideVisibility.visible.value" @click="toggleGuideVisibility">{{ guideVisibility.visible.value ? 'Désactiver le bouton' : 'Réactiver le bouton' }}</button>
+    </section>
   </div>
 </template>

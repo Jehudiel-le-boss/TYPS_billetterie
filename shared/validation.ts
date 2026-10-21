@@ -47,6 +47,7 @@ export const eventCreateSchema = z.object({
 export const categorySchema = z.object({
   name: z.string().trim().min(1).max(80),
   kind: z.enum(['free', 'standard', 'vip', 'backstage', 'early_bird', 'group', 'custom']).default('standard'),
+  customType: z.string().trim().min(1).max(80).nullable().optional(),
   price: z.number().int().min(0).max(100_000_000), quota: z.number().int().min(1).max(1_000_000),
   maxPerOrder: z.number().int().min(1).max(50).optional(),
   templateId: z.string().uuid().nullable().optional(),

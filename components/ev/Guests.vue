@@ -5,13 +5,20 @@ const csv = ref('nom,email\nAïcha Dossou,aicha@exemple.com\nKoffi Mensah,'); co
 const body = (commit: boolean) => ({ csv: csv.value, listName: listName.value, kind: kind.value, categoryId: categoryId.value || undefined, commit })
 async function check() { try { preview.value = await api(`/api/manage/events/${props.ev.id}/guests`, { method: 'POST', body: body(false) }) } catch (e) { toast.err(errMsg(e)) } }
 async function commit() { busy.value = true; try { const r = await api<any>(`/api/manage/events/${props.ev.id}/guests`, { method: 'POST', body: body(true) }); toast.ok(`${r.issued} invitation(s) émise(s)`); links.value = r.links; preview.value = null; refresh() } catch (e) { toast.err(errMsg(e)) } finally { busy.value = false } }
-async function onFile(e: Event) { const f = (e.target as HTMLInputElement).files?.[0]; if (f) { csv.value = await f.text(); preview.value = null } }
+async function onFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  const f = input.files?.[0]
+  if (!f) return
+  if (f.size > 400_000) { toast.err('Fichier CSV trop volumineux (400 Ko maximum).'); input.value = ''; return }
+  if (!/\.csv$/i.test(f.name) && !['text/csv', 'text/plain', 'application/csv'].includes(f.type)) { toast.err('Format refusé : sélectionne un fichier CSV ou texte.'); input.value = ''; return }
+  try { csv.value = await f.text(); preview.value = null } catch (error) { toast.err(error instanceof Error ? error.message : 'Lecture du CSV impossible.') }
+}
 </script>
 <template>
   <div class="grid gap-6 xl:grid-cols-2">
     <div class="card space-y-4 p-5"><h2 class="text-lg font-bold">Importer des invités (CSV)</h2><p class="text-sm text-muted">Colonnes : <code>nom</code> (obligatoire) et <code>email</code> (facultatif). Chaque invité reçoit un billet gratuit individuel.</p>
       <div class="grid gap-3 sm:grid-cols-2"><label class="block"><span class="label">Nom de la liste</span><input v-model="listName" class="input"></label><label class="block"><span class="label">Type</span><select v-model="kind" class="input"><option value="vip">VIP</option><option value="press">Presse</option><option value="partner">Partenaire</option><option value="free">Invitation gratuite</option></select></label><label class="block sm:col-span-2"><span class="label">Catégorie des billets</span><select v-model="categoryId" class="input"><option v-for="c in ev.categories" :key="c.id" :value="c.id">{{ c.name }} ({{ c.quota - c.sold - c.reserved }} places)</option></select></label></div>
-      <label class="block"><span class="label">Fichier ou contenu</span><input type="file" accept=".csv,text/csv,text/plain" class="input !py-2" @change="onFile"><textarea v-model="csv" rows="6" class="input mt-2 font-mono text-xs" aria-label="Contenu CSV" @input="preview = null" /></label>
+      <label class="block"><span class="label">Fichier ou contenu (CSV, 400 Ko maximum)</span><input type="file" accept=".csv,text/csv,text/plain" class="input !py-2" @change="onFile"><textarea v-model="csv" maxlength="400000" rows="6" class="input mt-2 font-mono text-xs" aria-label="Contenu CSV (400 Ko maximum)" @input="preview = null" /></label>
       <div class="flex gap-2"><button class="btn btn-ghost" @click="check">Vérifier le fichier</button><button class="btn btn-primary" :disabled="busy || !preview || preview.errors.length > 0 || !preview.rows.length" @click="commit">Émettre {{ preview?.rows.length ?? 0 }} invitation(s)</button></div>
       <div v-if="preview" class="space-y-2 text-sm"><p class="font-semibold">{{ preview.rows.length }} ligne(s) valide(s) sur {{ preview.total }}</p><ul v-if="preview.errors.length" class="space-y-1 rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-red-200"><li v-for="e in preview.errors" :key="e.line + e.message">Ligne {{ e.line }} : {{ e.message }}</li></ul><p v-else class="text-emerald-300">Aucune erreur : prêt à émettre.</p></div>
       <div v-if="links.length" class="space-y-1 rounded-xl border border-line p-3 text-sm"><p class="font-semibold">Invités sans e-mail : liens à transmettre</p><p v-for="l in links" :key="l.url" class="break-all"><strong>{{ l.name }}</strong> : {{ l.url }}</p></div></div>

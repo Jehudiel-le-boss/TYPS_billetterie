@@ -5,11 +5,12 @@ import { requireEvent } from '~~/server/utils/access'
 import { eventLocations, ticketCategories } from '~~/server/db/schema'
 import { env } from '~~/server/utils/env'
 import { sanitizeEventDescription } from '~~/server/utils/rich-content'
+import { signedUrl } from '~~/server/services/storage'
 export default api(async (e) => {
   const { event, access } = await requireEvent(e, uuidParam(e, 'id'), 'event:read')
   const db = useDb()
   const [loc] = await db.select().from(eventLocations).where(eq(eventLocations.eventId, event.id)).limit(1)
   const categories = await db.select().from(ticketCategories).where(and(eq(ticketCategories.eventId, event.id), isNull(ticketCategories.deletedAt))).orderBy(asc(ticketCategories.position), asc(ticketCategories.price))
   const { accessCodeHash, ...safe } = event
-  return { ...safe, description: sanitizeEventDescription(safe.description), hasAccessCode: !!accessCodeHash, location: loc ?? null, categories, access, shareUrl: `${env.siteUrl()}/events/${event.slug}${event.visibility === 'public' ? '' : `?k=${event.shareToken}`}` }
+  return { ...safe, description: sanitizeEventDescription(safe.description), hasAccessCode: !!accessCodeHash, posterUrl: safe.posterKey ? await signedUrl(safe.posterKey, 3600) : null, location: loc ?? null, categories, access, shareUrl: `${env.siteUrl()}/events/${event.slug}${event.visibility === 'public' ? '' : `?k=${event.shareToken}`}` }
 })

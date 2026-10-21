@@ -11,6 +11,7 @@ describe('gabarit + PDF', () => {
     expect(ticketTypeLabel('vip', 'Entrée')).toBe('VIP')
     expect(ticketTypeLabel('backstage', 'Accès scène')).toBe('Backstage')
     expect(ticketTypeLabel('free', 'Entrée')).toBe('Gratuit')
+    expect(ticketTypeLabel('custom', 'Accès terrasse', 'Premium')).toBe('Premium')
     expect(ticketTypeLabel('custom', 'Accès terrasse')).toBe('Accès terrasse')
   })
   it('garde le type réel d’un calque distinct de son nom personnalisé', () => {
@@ -40,6 +41,26 @@ describe('gabarit + PDF', () => {
     expect(() => sanitizeLayout({ v: 2 })).toThrow()
     const l = defaultLayout(); l.width = 99999; (l.elements[1] as any).color = 'javascript:alert(1)'; (l.elements[1] as any).font = 'unexpected'; (l.elements[3] as any).dateFormat = 'unexpected'
     const s = sanitizeLayout(l); expect(s.width).toBe(2400); expect((s.elements[1] as any).color).toBe('#ffffff'); expect((s.elements[1] as any).font).toBe('sans'); expect((s.elements[3] as any).dateFormat).toBe('default')
+  })
+  it('préserve le rendu étiré des anciens modèles et valide les modes de fond', () => {
+    const layout = defaultLayout()
+    expect(sanitizeLayout({ ...layout, background: { color: '#12131c' } }).background.fit).toBe('stretch')
+    for (const fit of ['cover', 'contain', 'stretch'] as const) {
+      expect(sanitizeLayout({ ...layout, background: { ...layout.background, fit } }).background.fit).toBe(fit)
+    }
+    expect(sanitizeLayout({ ...layout, background: { ...layout.background, fit: 'invalid' } }).background.fit).toBe('stretch')
+  })
+  it('génère un PDF d’aperçu sans secret QR et avec les trois ajustements de fond', async () => {
+    for (const fit of ['cover', 'contain', 'stretch'] as const) {
+      const layout = defaultLayout()
+      layout.background.assetId = 'background'
+      layout.background.fit = fit
+      const bytes = await renderTicketPdf(layout, SAMPLE_CONTEXT, 'TYPS-APERÇU-NON-VALIDE', async () => ({
+        bytes: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/WioAAAAASUVORK5CYII=', 'base64'),
+        mime: 'image/png'
+      }))
+      await expect(PDFDocument.load(bytes)).resolves.toBeTruthy()
+    }
   })
   it('génère un PDF valide à la bonne taille (px × 0,75), accents inclus', async () => {
     const bytes = await renderTicketPdf(defaultLayout(), { ...SAMPLE_CONTEXT, holderName: 'Zoé Ñandú — 🎉' }, signTicketCode('11111111-1111-4111-8111-111111111111', 1, 'unit-test-secret-0123456789'))

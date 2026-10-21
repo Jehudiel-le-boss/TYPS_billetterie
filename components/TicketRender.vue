@@ -9,7 +9,7 @@ const sstyle = (el: any) => ({ ...box(el), background: el.fill, border: el.strok
 </script>
 <template>
   <div class="relative overflow-hidden" :style="{ width: layout.width + 'px', height: layout.height + 'px', background: layout.background.color }">
-    <img v-if="layout.background.assetId && assets?.[layout.background.assetId]" :src="assets[layout.background.assetId]" alt="" class="absolute inset-0 h-full w-full" style="object-fit: fill">
+    <img v-if="layout.background.assetId && assets?.[layout.background.assetId]" :src="assets[layout.background.assetId]" alt="" class="absolute inset-0 h-full w-full" :style="{ objectFit: layout.background.fit === 'stretch' || !layout.background.fit ? 'fill' : layout.background.fit }">
     <template v-for="el in layout.elements" :key="el.id">
       <template v-if="!el.hidden">
         <div v-if="el.type === 'shape'" :style="sstyle(el)" />

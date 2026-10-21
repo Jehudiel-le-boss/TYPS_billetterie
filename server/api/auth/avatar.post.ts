@@ -18,6 +18,7 @@ export default api(async (e) => {
   if (file.data.length > MAX_AVATAR_BYTES) return fail(413, 'Image trop volumineuse (4 Mo maximum)', 'too_large')
   const image = sniffImage(file.data)
   if (!image) return fail(415, 'Format refusé : PNG ou JPEG uniquement', 'bad_type')
+  if (image.width < 1 || image.height < 1) return fail(422, 'Dimensions d’image invalides.', 'bad_image')
   if (image.width > 3000 || image.height > 3000) return fail(422, 'Image trop grande (3000 px maximum)', 'too_large')
 
   const ext = image.mime === 'image/png' ? 'png' : 'jpg'

@@ -7,7 +7,7 @@ import { deleteObject, putObject, sniffImage, signedUrl } from '~~/server/servic
 import { randomToken } from '~~/server/utils/crypto'
 import { fail } from '~~/server/utils/errors'
 import { eq } from 'drizzle-orm'
-const MAX = 6 * 1024 * 1024
+const MAX = 4 * 1024 * 1024
 // Téléversement validé côté serveur : taille, type RÉEL (octets magiques PNG/JPEG), nom généré — jamais le nom du client. SVG refusé (XSS).
 export default api(async (e) => {
   const parts = await readMultipartFormData(e)
@@ -18,10 +18,11 @@ export default api(async (e) => {
   const { user } = await requireOrg(e, orgId, kind === 'poster' || kind === 'gallery' ? 'event:write' : 'template:write'); limit(e, 'upload', 40, 600_000, user.id)
   const file = parts.find((p) => p.name === 'file' && p.filename)
   if (!file) return fail(400, 'Fichier manquant', 'validation')
-  if (file.data.length > MAX) return fail(413, 'Fichier trop volumineux (6 Mo maximum)', 'too_large')
+  if (file.data.length > MAX) return fail(413, 'Fichier trop volumineux après réception (4 Mo maximum). Réessaie avec une image moins lourde.', 'too_large')
   const img = sniffImage(file.data)
   if (!img) return fail(415, 'Format refusé : PNG ou JPEG uniquement (les PDF sont convertis dans l’éditeur)', 'bad_type')
-  if (img.width > 6000 || img.height > 6000) return fail(422, 'Image trop grande (6000 px maximum)', 'too_large')
+  if (img.width < 1 || img.height < 1) return fail(422, 'Dimensions d’image invalides.', 'bad_image')
+  if (img.width > 6000 || img.height > 6000 || img.width * img.height > 24_000_000) return fail(422, 'Image trop grande (6000 px par côté et 24 mégapixels maximum)', 'too_large')
   const key = `org/${orgId}/${kind}/${randomToken(18)}.${img.mime === 'image/png' ? 'png' : 'jpg'}`
   let storageKey: string
   try {
@@ -79,8 +80,11 @@ export default api(async (e) => {
       console.error('[upload.cleanup] Could not remove asset after URL failure', { errorName: cleanupError instanceof Error ? cleanupError.name : 'UnknownError' })
     }
     console.error('[upload.url] Could not create signed asset URL', { errorName: error instanceof Error ? error.name : 'UnknownError' })
+    const missingSigningSecret = error instanceof Error && error.message.includes('SESSION_SECRET')
     return fail(503, objectRemoved && recordRemoved
-      ? 'Le lien de lecture de l’image n’a pas pu être créé. Réessaie.'
+      ? missingSigningSecret
+        ? 'Configuration serveur incomplète : SESSION_SECRET doit être définie en production (16 caractères minimum).'
+        : 'Le lien de lecture de l’image n’a pas pu être créé. Réessaie.'
       : 'La création du lien de l’image a échoué et le nettoyage du fichier est incomplet. Contacte l’assistance.',
     'asset_url_failed')
   }

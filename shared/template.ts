@@ -30,7 +30,7 @@ export type TplElement =
 
 export interface TemplateLayout {
   v: 1; width: number; height: number
-  background: { color: string; assetId?: string | null }
+  background: { color: string; assetId?: string | null; fit?: 'cover' | 'contain' | 'stretch' }
   elements: TplElement[]
 }
 export const PRINT_FORMATS = [
@@ -77,7 +77,7 @@ export function resolveField(field: FieldKey, c: TicketContext, dateFormat: Tick
     default: return ''
   }
 }
-export function ticketTypeLabel(kind: string, categoryName: string): string {
+export function ticketTypeLabel(kind: string, categoryName: string, customType?: string | null): string {
   const labels: Record<string, string> = {
     free: 'Gratuit',
     standard: 'Standard',
@@ -85,7 +85,7 @@ export function ticketTypeLabel(kind: string, categoryName: string): string {
     backstage: 'Backstage',
     early_bird: 'Early bird',
     group: 'Groupe',
-    custom: categoryName || 'Personnalisé'
+    custom: customType?.trim() || categoryName || 'Personnalisé'
   }
   return labels[kind] ?? categoryName
 }
@@ -116,7 +116,7 @@ export const uid = () => `el_${Date.now().toString(36)}_${(n++).toString(36)}`
 const txt = { fontSize: 20, font: 'sans' as PdfFont, bold: false, color: '#ffffff', align: 'left' as const }
 export function defaultLayout(): TemplateLayout {
   return {
-    v: 1, width: 900, height: 360, background: { color: '#12131c', assetId: null },
+    v: 1, width: 900, height: 360, background: { color: '#12131c', assetId: null, fit: 'cover' },
     elements: [
       { id: uid(), type: 'shape', shape: 'rect', x: 0, y: 0, w: 14, h: 360, opacity: 1, fill: '#22d3ee', stroke: '#000000', strokeWidth: 0, radius: 0, name: 'Bande' },
       { id: uid(), type: 'field', field: 'event_title', x: 48, y: 44, w: 560, h: 56, opacity: 1, ...txt, fontSize: 38, bold: true },
@@ -146,5 +146,7 @@ export function sanitizeLayout(input: unknown): TemplateLayout {
     if (base.type === 'shape') { (base as any).fill = col((base as any).fill, '#ffffff'); (base as any).stroke = col((base as any).stroke, '#000000') }
     return base as TplElement
   })
-  return { v: 1, width: w, height: h, background: { color: col(l.background?.color, '#12131c'), assetId: l.background?.assetId ?? null }, elements: els }
+  const backgroundFit = l.background?.fit
+  const fit: 'cover' | 'contain' | 'stretch' = backgroundFit === 'cover' || backgroundFit === 'contain' || backgroundFit === 'stretch' ? backgroundFit : 'stretch'
+  return { v: 1, width: w, height: h, background: { color: col(l.background?.color, '#12131c'), assetId: l.background?.assetId ?? null, fit }, elements: els }
 }

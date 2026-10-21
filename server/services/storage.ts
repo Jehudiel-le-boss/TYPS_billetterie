@@ -72,11 +72,7 @@ export async function putObject(key: string, body: Buffer, mime: string): Promis
 }
 export async function getObject(key: string): Promise<Buffer> {
   if (key.startsWith('cld:')) {
-    const cloudKey = key.slice(4)
-    const format = cloudKey.split('.').pop()
-    if (!format || !/^(png|jpe?g)$/i.test(format)) throw new Error('Format Cloudinary invalide')
-    const publicId = cloudKey.replace(/\.(?:png|jpe?g)$/i, '')
-    const url = cloudinaryClient().utils.private_download_url(publicId, format, { resource_type: 'image', type: 'private', expires_at: Math.floor(Date.now() / 1000) + 60 })
+    const url = cloudinaryPrivateDownloadUrl(key, 60)
     const response = await fetch(url, { signal: AbortSignal.timeout(15_000) })
     if (!response.ok) throw new Error(`Échec de récupération Cloudinary (HTTP ${response.status})`)
     return Buffer.from(await response.arrayBuffer())
@@ -98,11 +94,23 @@ export async function deleteObject(key: string) {
   }
   await rm(localPath(key), { force: true })
 }
-/** URL temporaire : présignature S3 ou route HMAC pour Cloudinary/local. */
+/** URL temporaire : URL privée signée du fournisseur, ou route HMAC en stockage local. */
 export async function signedUrl(key: string, ttlSeconds = 3600): Promise<string> {
+  if (key.startsWith('cld:')) return cloudinaryPrivateDownloadUrl(key, ttlSeconds)
   if (!key.startsWith('cld:') && storageProvider() === 's3') return getSignedUrl(s3(), new GetObjectCommand({ Bucket: env.s3().bucket, Key: key }), { expiresIn: ttlSeconds })
   const exp = Math.floor(Date.now() / 1000) + ttlSeconds
   return `/api/files/${encodeURIComponent(key)}?exp=${exp}&sig=${hmac(env.sessionSecret(), `${key}.${exp}`)}`
+}
+function cloudinaryPrivateDownloadUrl(key: string, ttlSeconds: number): string {
+  const cloudKey = key.slice(4)
+  const format = cloudKey.split('.').pop()
+  if (!format || !/^(png|jpe?g)$/i.test(format)) throw new Error('Format Cloudinary invalide')
+  const publicId = cloudKey.replace(/\.(?:png|jpe?g)$/i, '')
+  return cloudinaryClient().utils.private_download_url(publicId, format, {
+    resource_type: 'image',
+    type: 'private',
+    expires_at: Math.floor(Date.now() / 1000) + ttlSeconds
+  })
 }
 export function verifyLocalSignature(key: string, exp: number, sig: string): boolean {
   return exp > Date.now() / 1000 && safeEqual(hmac(env.sessionSecret(), `${key}.${exp}`), sig)

@@ -1,0 +1,1 @@
+ALTER TABLE "ticket_categories" ADD COLUMN "custom_type" text;

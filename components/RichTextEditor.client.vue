@@ -134,6 +134,7 @@ const editor = useEditor({
   extensions: [
     StarterKit.configure({
       heading: { levels: [2, 3, 4] },
+      underline: false,
       // Les liens sont gérés par l'extension Link du kit : pas de clic
       // ouvrant un onglet pendant l'édition (source de perte de focus).
       link: { openOnClick: false, autolink: true, protocols: ['http', 'https', 'mailto'] }

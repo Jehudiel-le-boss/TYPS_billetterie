@@ -19,5 +19,5 @@ export async function categoriesWithAvailability(db: Db, eventId: string) {
   const cats = await db.select().from(ticketCategories).where(and(eq(ticketCategories.eventId, eventId), isNull(ticketCategories.deletedAt))).orderBy(asc(ticketCategories.position), asc(ticketCategories.price))
   const now = Date.now()
   return cats.map((c) => { const left = Math.max(0, c.quota - c.sold - c.reserved); const notYet = !!c.saleStart && c.saleStart.getTime() > now, over = !!c.saleEnd && c.saleEnd.getTime() < now
-    return { id: c.id, name: c.name, kind: c.kind, price: c.price, vip: c.vip, available: left, soldOut: left === 0, onSale: !notYet && !over, saleStart: c.saleStart, saleEnd: c.saleEnd, maxPerOrder: c.maxPerOrder } })
+    return { id: c.id, name: c.name, kind: c.kind, customType: c.customType, price: c.price, vip: c.vip, available: left, soldOut: left === 0, onSale: !notYet && !over, saleStart: c.saleStart, saleEnd: c.saleEnd, maxPerOrder: c.maxPerOrder } })
 }
