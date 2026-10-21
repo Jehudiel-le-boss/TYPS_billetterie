@@ -13,6 +13,8 @@ import { ZERO_FEES } from '../shared/money'
 import { eventCan } from '../shared/permissions'
 import { getPlatformFeatures, setPlatformFeatures } from '../server/services/settings'
 import { notifyOrganizationManagers } from '../server/services/notifications'
+import { buildContext } from '../server/services/ticket-render'
+import { defaultLayout } from '../shared/template'
 
 let db: Db
 beforeAll(async () => { db = await makeDb() })
@@ -89,6 +91,29 @@ describe('quota et réservations', () => {
 })
 
 describe('paiement et émission des billets', () => {
+  it('utilise le modèle de la catégorie puis retombe sur celui de l’événement', async () => {
+    const f = await fixture(db)
+    const eventLayout = defaultLayout()
+    eventLayout.width = 800
+    const categoryLayout = defaultLayout()
+    categoryLayout.width = 1000
+    const [eventTemplate] = await db.insert(s.ticketTemplates).values({
+      organizationId: f.org.id, name: 'Modèle événement', draftLayout: eventLayout
+    }).returning()
+    const [categoryTemplate] = await db.insert(s.ticketTemplates).values({
+      organizationId: f.org.id, name: 'Modèle catégorie', draftLayout: categoryLayout
+    }).returning()
+    await db.update(s.events).set({ templateId: eventTemplate!.id }).where(eq(s.events.id, f.ev.id))
+    await db.update(s.ticketCategories).set({ templateId: categoryTemplate!.id }).where(eq(s.ticketCategories.id, f.cat.id))
+    const order = await createOnlineOrder(db, { eventId: f.ev.id, items: [{ categoryId: f.cat.id, quantity: 1 }], buyer: buyer() }, ZERO_FEES)
+    await pay(order.orderId, order.total)
+    const [ticket] = await ticketsOf(order.orderId)
+    expect((await buildContext(db, ticket!.id))?.layout.width).toBe(1000)
+
+    await db.update(s.ticketCategories).set({ templateId: null }).where(eq(s.ticketCategories.id, f.cat.id))
+    expect((await buildContext(db, ticket!.id))?.layout.width).toBe(800)
+  })
+
   it('paiement réussi : autant de billets que de quantité payée, tous avec un QR différent', async () => {
     const f = await fixture(db); const o = await createOnlineOrder(db, { eventId: f.ev.id, items: [{ categoryId: f.cat.id, quantity: 3 }], buyer: buyer() }, ZERO_FEES)
     expect(await pay(o.orderId, o.total)).toBe('paid')

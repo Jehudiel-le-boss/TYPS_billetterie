@@ -15,6 +15,10 @@ Les améliorations portant sur l'éditeur de billets, l'orientation des utilisat
 - Les messages de validation distinguent maintenant le contraste QR de l'accessibilité générale des textes.
 - L'éditeur permet aussi de faire glisser les champs dynamiques sur le billet (et de les déposer après un appui long sur téléphone), d'annuler/rétablir visiblement les changements, de choisir parmi six variantes de polices PDF intégrées et de régler le format de date. Les données fictives de prévisualisation sont modifiables sans altérer les données réelles des billets.
 - L'aperçu PDF enregistre d'abord le modèle, reprend les données d'aperçu éditées et retourne une erreur visible si l'aperçu est interdit ou échoue. L'import d'image/PDF applique la limite serveur réelle de 6 Mo et signale l'échec de conversion. Le test PDF en lecture seule est accessible aux membres ayant le droit de lire l'événement.
+- Le champ « Type de billet » affiche le type lié à la catégorie (VIP, standard, gratuit, etc.), distinct du nom de la catégorie. L'ancien champ VIP reste rendu dans les modèles existants, mais n'est plus proposé aux nouveaux calques.
+- Le nom personnalisé d'un calque ne masque plus son type d'objet : QR code, champ dynamique, texte, image ou forme sont indiqués séparément. Le PDF d'essai est téléchargé directement et les erreurs de génération sont affichées dans le Studio.
+- Les échecs d'upload distinguent le stockage, l'enregistrement de la ressource et la création du lien; les fichiers temporaires sont supprimés au mieux quand une étape après l'upload échoue.
+- Vérification réelle Cloudinary : un PNG synthétique a été envoyé puis relu comme PNG valide de mêmes dimensions, et l'objet temporaire a été supprimé. Cloudinary réencode l'image, donc l'égalité binaire n'est pas attendue. Cette vérification du stockage ne remplace pas un essai authentifié de la route `/api/uploads`.
 
 ### Parcours et rôles
 
@@ -76,8 +80,9 @@ Pour poursuivre sans exposer de secrets : fournir au CLI un compte Vercel qui a 
 ## Validation et limites
 
 - Après mise à jour de PDF.js, Axios et Vitest vers 5.0.5, `npm run check` a réussi : typecheck, ESLint, **10 fichiers de test / 71 tests** et build Nuxt client/serveur.
+- Pour les correctifs du Studio et de l'association catégorie/modèle, `npm run typecheck`, `npm run lint`, la suite complète (**10 fichiers / 83 tests**) et le build Nuxt de production ont réussi.
 - `git diff --check` a été exécuté; il n'a signalé aucun défaut d'espacement (Git a émis uniquement des avertissements de conversion LF/CRLF).
-- Aucun test visuel dans un navigateur ni sur un déploiement n'a été exécuté. Les règles globales de scrollbar personnalisée existaient déjà et utilisent les couleurs d'accent et de fond du thème.
+- Le domaine public TYPS répond en HTTP 200, mais aucun test visuel authentifié du Studio n'a été possible. Le processus sur le port local 3100 sert un autre projet; il n'a pas été redémarré ni modifié. Les règles globales de scrollbar personnalisée, basées sur les couleurs d'accent et de fond du thème, sont présentes dans le CSS du projet et le bundle local.
 - Aucun fournisseur de paiement, e-mail ou caméra n'a été sollicité; le comportement réel doit être testé sur un environnement de préproduction.
 - Corrections de dépendances appliquées localement : Axios 1.20.0 forcé pour FedaPay, PDF.js 6.4.299 et Vitest 5.0.5; la commande `npm audit fix` a aussi rafraîchi les dépendances compatibles du lockfile. Cela supprime les alertes Axios/FedaPay, PDF.js et les alertes critiques de Vitest.
 - Le dernier audit (`npm audit --omit=dev`) signale **15 vulnérabilités de production restantes (12 élevées, 3 modérées)**. L'audit complet en compte **19 (12 élevées, 7 modérées, aucune critique)**. Les alertes non résolues touchent principalement Nuxt/Nitro, Tailwind 3, les outils PostCSS et Drizzle Kit.
@@ -91,3 +96,12 @@ Pour poursuivre sans exposer de secrets : fournir au CLI un compte Vercel qui a 
 3. Effectuer des essais FedaPay sandbox, de scan en ligne/hors ligne et de remboursement avec les configurations réelles.
 4. Examiner les vulnérabilités npm restantes et planifier les mises à niveau majeures sans correction forcée non contrôlée.
 5. Compléter les textes légaux et faire valider les obligations de confidentialité par un conseil compétent.
+
+## Correctifs parcours événements, cartes et modèles (2026-10-21)
+
+- La page de gestion ouvre maintenant l'aperçu avec le jeton secret de l'événement. L'API autorise ce jeton à afficher un brouillon sans publier les ventes; les brouillons et événements non publiés restent exclus de l'indexation.
+- Le modèle de billet peut être choisi à la création et à la modification de chaque catégorie. Le moteur sélectionne ce modèle, puis retombe sur le modèle de l'événement, puis sur le gabarit TYPS. Les API n'acceptent que les modèles actifs de l'organisation de l'événement. La migration additive `0004_panoramic_lilandra.sql` ajoute la référence facultative au modèle.
+- L'éditeur de billet fait défiler le panneau de propriétés après l'ajout d'un champ sur téléphone, y compris par appui simple depuis la palette. La gestion des catégories dispose aussi de cartes éditables sur petit écran; le tableau détaillé est réservé aux écrans moyens et grands.
+- L'édition de lieu accepte les structures de coordonnées usuelles dans les URL Maps (`@lat,lng`, `!3d...!4d...`, `!2d...!3d...`, et les paramètres de recherche/destination). Une carte OpenStreetMap intégrée s'affiche quand les deux coordonnées sont valides; Google Maps reste disponible pour rechercher le lieu. Un raccourcisseur Maps qui ne contient pas ses coordonnées ne peut pas être résolu sans suivre un lien externe.
+- Validation locale ciblée : typecheck, ESLint, 12 tests de contenu événementiel et 25 tests d'intégration (dont priorité du modèle de catégorie et repli événementiel), puis build Nuxt client/serveur réussi. Les tests d'intégration appliquent également la migration sur PGlite.
+- Le parcours Vercel authentifié n'a pas été inspecté ou déployé dans cette session. Vérifier sur préproduction l'aperçu secret, l'iframe cartographique sur les navigateurs ciblés et les PDF de billets pour deux catégories liées à deux modèles.

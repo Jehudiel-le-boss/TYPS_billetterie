@@ -1,9 +1,9 @@
 // Modèle de billet : un JSON unique, rendu à l'identique par l'éditeur (HTML), l'aperçu et le moteur PDF (pdf-lib).
-export const FIELD_KEYS = ['event_title', 'holder_name', 'category', 'price', 'currency', 'ticket_number', 'datetime', 'venue', 'order_id', 'vip_badge', 'access_terms', 'organizer_logo'] as const
+export const FIELD_KEYS = ['event_title', 'holder_name', 'category', 'ticket_type', 'price', 'currency', 'ticket_number', 'datetime', 'venue', 'order_id', 'vip_badge', 'access_terms', 'organizer_logo'] as const
 export type FieldKey = (typeof FIELD_KEYS)[number]
 export const FIELD_LABELS: Record<FieldKey, string> = {
   event_title: "Nom de l'événement", holder_name: 'Nom du participant', category: 'Catégorie', price: 'Prix payé', currency: 'Devise',
-  ticket_number: 'Numéro de billet', datetime: 'Date et heure', venue: 'Lieu', order_id: 'Identifiant de commande', vip_badge: 'Mention VIP',
+  ticket_type: 'Type de billet', ticket_number: 'Numéro de billet', datetime: 'Date et heure', venue: 'Lieu', order_id: 'Identifiant de commande', vip_badge: 'Ancienne mention VIP (compatibilité)',
   access_terms: "Conditions d'accès", organizer_logo: "Logo de l'organisateur"
 }
 export const PDF_FONTS = ['sans', 'sans_italic', 'serif', 'serif_italic', 'mono', 'mono_italic'] as const
@@ -42,7 +42,7 @@ export const PRINT_FORMATS = [
 export const PX_TO_PT = 0.75
 
 export interface TicketContext {
-  eventTitle: string; holderName: string; category: string; price: string; currency: string; ticketNumber: string
+  eventTitle: string; holderName: string; category: string; ticketType?: string; price: string; currency: string; ticketNumber: string
   datetime: string; venue: string; orderId: string; vip: boolean; accessTerms: string; demo?: boolean; startsAt?: string; timezone?: string
 }
 function formatTicketDate(c: TicketContext, format: TicketDateFormat) {
@@ -65,6 +65,7 @@ export function resolveField(field: FieldKey, c: TicketContext, dateFormat: Tick
     case 'event_title': return c.eventTitle
     case 'holder_name': return c.holderName
     case 'category': return c.category
+    case 'ticket_type': return c.ticketType || c.category
     case 'price': return c.price
     case 'currency': return c.currency
     case 'ticket_number': return c.ticketNumber
@@ -76,8 +77,37 @@ export function resolveField(field: FieldKey, c: TicketContext, dateFormat: Tick
     default: return ''
   }
 }
+export function ticketTypeLabel(kind: string, categoryName: string): string {
+  const labels: Record<string, string> = {
+    free: 'Gratuit',
+    standard: 'Standard',
+    vip: 'VIP',
+    backstage: 'Backstage',
+    early_bird: 'Early bird',
+    group: 'Groupe',
+    custom: categoryName || 'Personnalisé'
+  }
+  return labels[kind] ?? categoryName
+}
+
+export function elementTypeLabel(element: TplElement): string {
+  if (element.type === 'field') return `Champ · ${FIELD_LABELS[element.field]}`
+  if (element.type === 'text') return 'Texte libre'
+  if (element.type === 'qr') return 'QR code'
+  if (element.type === 'image') return 'Image'
+  return element.shape === 'ellipse' ? 'Forme · Ellipse' : 'Forme · Rectangle'
+}
+
+export function elementNameLabel(element: TplElement): string {
+  if (element.name?.trim()) return element.name.trim()
+  if (element.type === 'field') return FIELD_LABELS[element.field]
+  if (element.type === 'text') return element.text.slice(0, 22) || 'Texte'
+  if (element.type === 'qr') return 'QR code'
+  if (element.type === 'image') return 'Image'
+  return element.shape === 'ellipse' ? 'Ellipse' : 'Rectangle'
+}
 export const SAMPLE_CONTEXT: TicketContext = {
-  eventTitle: 'Événement de démonstration', holderName: 'Participant exemple', category: 'Standard', price: '15 000', currency: 'FCFA', ticketNumber: 'TY-7K3M9QXA',
+  eventTitle: 'Événement de démonstration', holderName: 'Participant exemple', category: 'Catégorie exemple', ticketType: 'Standard', price: '15 000', currency: 'FCFA', ticketNumber: 'TY-7K3M9QXA',
   datetime: '12 déc. 2026 · 20:00', venue: 'Lieu de démonstration, Cotonou', orderId: 'CMD-4F2A91', vip: false, accessTerms: 'Conditions d’accès de démonstration.', demo: true,
   startsAt: '2026-12-12T20:00:00+01:00', timezone: 'Africa/Porto-Novo'
 }

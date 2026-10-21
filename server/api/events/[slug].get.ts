@@ -22,7 +22,8 @@ export default api(async (e) => {
   const staffView = u ? eventCan((await eventAccessOf(db, u, ev.id))?.access ?? { platformAdmin: false, orgRole: null, staff: null }, 'event:read') : false
   const linkOk = !!k && safeEqual(k, ev.shareToken)
   const publicOk = ev.status === 'published' && ev.moderation === 'ok' && (ev.visibility === 'public' || linkOk)
-  if (!publicOk && !staffView && !(ev.status === 'closed' && (ev.visibility === 'public' || linkOk))) return fail(404, 'Événement introuvable', 'not_found')
+  const draftPreviewOk = ev.status === 'draft' && linkOk
+  if (!publicOk && !staffView && !draftPreviewOk && !(ev.status === 'closed' && (ev.visibility === 'public' || linkOk))) return fail(404, 'Événement introuvable', 'not_found')
   return {
     id: ev.id, slug: ev.slug, title: ev.title, description: sanitizeEventDescription(ev.description), category: ev.category, status: ev.status, visibility: ev.visibility, startsAt: ev.startsAt, endsAt: ev.endsAt, timezone: ev.timezone, currency: ev.currency,
     themeId: ev.themeId, isDemo: ev.isDemo, faq: ev.faq, countdownEnabled: ev.countdownEnabled, countdownUnits: ev.countdownUnits, requiresAccessCode: ev.visibility === 'invite' || (ev.visibility === 'private' && !!ev.accessCodeHash), transfersEnabled: ev.transfersEnabled, refundPolicy: ev.refundPolicy, maxPerOrder: ev.maxPerOrder,

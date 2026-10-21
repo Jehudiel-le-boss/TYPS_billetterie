@@ -1,0 +1,2 @@
+ALTER TABLE "ticket_categories" ADD COLUMN "template_id" uuid;--> statement-breakpoint
+ALTER TABLE "ticket_categories" ADD CONSTRAINT "ticket_categories_template_id_ticket_templates_id_fk" FOREIGN KEY ("template_id") REFERENCES "public"."ticket_templates"("id") ON DELETE set null ON UPDATE no action;

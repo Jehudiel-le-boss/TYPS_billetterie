@@ -5,13 +5,13 @@ import { HttpError } from '../utils/errors'
 import { signTicketCode } from '../utils/qr'
 import { getObject } from './storage'
 import { renderTicketPdf, renderSheetPdf, type AssetLoader } from './pdf'
-import { defaultLayout, sanitizeLayout, type TemplateLayout, type TicketContext } from '../../shared/template'
+import { defaultLayout, sanitizeLayout, ticketTypeLabel, type TemplateLayout, type TicketContext } from '../../shared/template'
 import { formatMoney } from '../../shared/money'
 
-export async function loadLayout(db: Db, templateId: string | null): Promise<TemplateLayout> {
-  if (!templateId) return defaultLayout()
+export async function loadLayout(db: Db, templateId: string | null): Promise<TemplateLayout | null> {
+  if (!templateId) return null
   const [t] = await db.select().from(ticketTemplates).where(and(eq(ticketTemplates.id, templateId), isNull(ticketTemplates.deletedAt))).limit(1)
-  if (!t) return defaultLayout()
+  if (!t) return null
   if (t.currentVersionId) { const [v] = await db.select().from(ticketTemplateVersions).where(eq(ticketTemplateVersions.id, t.currentVersionId)).limit(1); if (v) return sanitizeLayout(v.layout) }
   return sanitizeLayout(t.draftLayout)
 }
@@ -26,11 +26,13 @@ export async function buildContext(db: Db, ticketId: string): Promise<{ ctx: Tic
   if (!r) return null
   const [loc] = await db.select().from(eventLocations).where(eq(eventLocations.eventId, r.e.id)).limit(1)
   const ctx: TicketContext = {
-    eventTitle: r.e.title, holderName: r.t.holderName, category: r.c.name, price: new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(r.t.pricePaid), currency: r.t.currency === 'XOF' ? 'FCFA' : r.t.currency,
+    eventTitle: r.e.title, holderName: r.t.holderName, category: r.c.name, ticketType: ticketTypeLabel(r.c.kind, r.c.name), price: new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(r.t.pricePaid), currency: r.t.currency === 'XOF' ? 'FCFA' : r.t.currency,
     ticketNumber: r.t.ref,     datetime: fmtDate(r.e.startsAt, r.e.timezone), startsAt: r.e.startsAt.toISOString(), timezone: r.e.timezone,
     venue: [loc?.venueName, loc?.city].filter(Boolean).join(', '), orderId: r.t.orderId ? `CMD-${r.t.orderId.slice(0, 6).toUpperCase()}` : '—', vip: r.c.vip, accessTerms: r.e.accessTerms, demo: r.t.isDemo
   }
-  return { ctx, layout: await loadLayout(db, r.e.templateId), code: signTicketCode(r.t.id, r.t.qrVersion), ticket: r.t, orderId: r.t.orderId }
+  const categoryLayout = await loadLayout(db, r.c.templateId)
+  const eventLayout = categoryLayout ? null : await loadLayout(db, r.e.templateId)
+  return { ctx, layout: categoryLayout ?? eventLayout ?? defaultLayout(), code: signTicketCode(r.t.id, r.t.qrVersion), ticket: r.t, orderId: r.t.orderId }
 }
 export async function ticketPdf(db: Db, ticketId: string): Promise<{ bytes: Uint8Array; ref: string; w: number; h: number }> {
   const b = await buildContext(db, ticketId)

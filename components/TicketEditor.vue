@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Éditeur visuel de billets : glisser-déposer, redimensionnement, calques, magnétisme, annulation, import PNG/JPG/PDF, enregistrement auto.
 import Draggable from 'vuedraggable'
-import { DATE_FORMATS, FIELD_LABELS, FIELD_KEYS, PRINT_FORMATS, SAMPLE_CONTEXT, uid, type TemplateLayout, type TicketContext, type TplElement } from '~~/shared/template'
+import { DATE_FORMATS, FIELD_LABELS, FIELD_KEYS, PRINT_FORMATS, SAMPLE_CONTEXT, elementNameLabel, elementTypeLabel, uid, type TemplateLayout, type TicketContext, type TplElement } from '~~/shared/template'
 import { THEMES } from '~~/shared/themes'
 const props = defineProps<{ templateId: string }>()
 const toast = useToast()
@@ -17,6 +17,7 @@ const stageCanvas = ref<HTMLElement>()
 const propertiesPanel = ref<HTMLElement>()
 const previewContext = reactive<TicketContext>({ ...SAMPLE_CONTEXT })
 const previewPdfBusy = ref(false)
+const previewPdfError = ref('')
 const paletteDrag = reactive({ active: false, field: '', x: 0, y: 0 })
 let paletteHoldTimer: ReturnType<typeof setTimeout> | undefined
 let palettePointer: { id: number; field: string; sx: number; sy: number } | null = null
@@ -28,7 +29,8 @@ const layerElements = computed({
   get: () => layout.value ? [...layout.value.elements].reverse() : [],
   set: (items: TplElement[]) => { if (layout.value) layout.value.elements = [...items].reverse() }
 })
-const label = (e: any) => e.name || (e.type === 'field' ? FIELD_LABELS[e.field as keyof typeof FIELD_LABELS] : e.type === 'text' ? e.text.slice(0, 22) || 'Texte' : e.type === 'qr' ? 'QR code' : e.type === 'image' ? 'Image' : e.shape === 'ellipse' ? 'Ellipse' : 'Rectangle')
+const label = elementNameLabel
+const objectType = elementTypeLabel
 
 const snapshot = () => { past.value.push(JSON.stringify(layout.value)); if (past.value.length > 80) past.value.shift(); future.value = [] }
 const undo = () => { const p = past.value.pop(); if (!p) return; future.value.push(JSON.stringify(layout.value)); layout.value = JSON.parse(p); sel.value = null }
@@ -44,7 +46,16 @@ async function refreshQr() { qr.value = await qrMapFor(layout.value) }
 async function loadAssets() { await refreshQr(); const ids = [layout.value.background.assetId, ...layout.value.elements.map((x) => (x.type === 'image' ? x.assetId : null))].filter(Boolean) as string[]; for (const id of ids) if (!assets.value[id]) api<{ url: string }>(`/api/assets/${id}/url`).then((r) => { assets.value[id] = r.url }).catch(() => {}) }
 function fit() { const w = stageBox.value?.clientWidth ?? 800; zoom.value = Math.min(1.4, Math.max(0.2, (w - 48) / layout.value.width)) }
 
-function add(e: Partial<TplElement> & { type: TplElement['type'] }) { snapshot(); const base = { id: uid(), x: 60, y: 60, w: 240, h: 40, opacity: 1 }; const full = { ...base, ...e } as TplElement; layout.value.elements.push(full); sel.value = full.id }
+function add(e: Partial<TplElement> & { type: TplElement['type'] }) {
+  snapshot()
+  const base = { id: uid(), x: 60, y: 60, w: 240, h: 40, opacity: 1 }
+  const full = { ...base, ...e } as TplElement
+  layout.value.elements.push(full)
+  sel.value = full.id
+  if (window.matchMedia('(max-width: 1023px)').matches) {
+    nextTick(() => propertiesPanel.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
+}
 const txt = { fontSize: 22, font: 'sans', bold: false, color: '#ffffff', align: 'left' }
 const addField = (f: string) => add({ type: 'field', field: f, ...txt } as any)
 function addFieldAt(field: string, clientX: number, clientY: number) {
@@ -53,7 +64,6 @@ function addFieldAt(field: string, clientX: number, clientY: number) {
   const x = Math.max(0, Math.min(layout.value.width - 40, Math.round((clientX - rect.left) * layout.value.width / rect.width)))
   const y = Math.max(0, Math.min(layout.value.height - 24, Math.round((clientY - rect.top) * layout.value.height / rect.height)))
   add({ type: 'field', field, ...txt, x, y } as any)
-  if (window.matchMedia('(max-width: 1023px)').matches) nextTick(() => propertiesPanel.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
 }
 function startFieldPress(ev: PointerEvent, field: string) {
   if (ev.pointerType !== 'touch') return
@@ -151,7 +161,29 @@ function onKey(ev: KeyboardEvent) {
 // Import de modèles (PNG / JPG / PDF multipage avec choix de la page)
 const fileIn = ref<HTMLInputElement>(); const logoIn = ref<HTMLInputElement>(); const uploading = ref(false); const fitFormat = ref(true)
 const pdf = reactive<{ open: boolean; doc: any; pages: number; page: number; buf: ArrayBuffer | null }>({ open: false, doc: null, pages: 1, page: 1, buf: null }); const pdfCanvas = ref<HTMLCanvasElement>()
-async function upload(blob: Blob, kind: string, name = 'image.png') { const fd = new FormData(); fd.append('orgId', tpl.value!.organizationId); fd.append('kind', kind); fd.append('file', blob, name); uploading.value = true; try { const r = await $fetch<any>('/api/uploads', { method: 'POST', body: fd }); assets.value[r.id] = r.url; return r } catch (e: any) { toast.err(e?.data?.statusMessage || 'Téléversement refusé'); return null } finally { uploading.value = false } }
+async function upload(blob: Blob, kind: string, name = 'image.png') {
+  if (!tpl.value) {
+    toast.err('Le modèle n’est pas encore chargé. Réessaie dans un instant.')
+    return null
+  }
+  const fd = new FormData()
+  fd.append('orgId', tpl.value.organizationId)
+  fd.append('kind', kind)
+  fd.append('file', blob, name)
+  uploading.value = true
+  try {
+    const r = await $fetch<{ id: string; width: number; height: number; url: string }>('/api/uploads', { method: 'POST', body: fd })
+    assets.value[r.id] = r.url
+    return r
+  } catch (error) {
+    const responseError = error as { data?: { statusMessage?: string }; statusMessage?: string }
+    const message = responseError.data?.statusMessage || responseError.statusMessage || 'Le téléversement a échoué. Vérifie le stockage puis réessaie.'
+    toast.err(message)
+    return null
+  } finally {
+    uploading.value = false
+  }
+}
 async function onBackground(ev: Event) {
   const f = (ev.target as HTMLInputElement).files?.[0]; (ev.target as HTMLInputElement).value = ''; if (!f) return
   if (f.size > 6 * 1024 * 1024) return toast.err('Fichier trop volumineux (6 Mo maximum)')
@@ -173,7 +205,7 @@ async function usePdfPage() { const cv = await renderPdf(1); const blob: Blob | 
 async function onLogo(ev: Event) { const f = (ev.target as HTMLInputElement).files?.[0]; (ev.target as HTMLInputElement).value = ''; if (!f) return; const r = await upload(f, 'logo', f.name); if (r) add({ type: 'image', assetId: r.id, w: 120, h: Math.round((120 * r.height) / r.width), fit: 'contain' } as any) }
 
 function applyTheme(id: string) { const t = THEMES.find((x) => x.id === id); if (!t) return; snapshot(); const L = layout.value; if (!L.background.assetId) L.background.color = t.bg
-  L.elements.forEach((e: any, i) => { if (e.type === 'text' || e.type === 'field') e.color = ['category', 'vip_badge'].includes(e.field) ? t.a : t.fg; if (e.type === 'shape') e.fill = i % 2 ? t.b : t.a }) }
+  L.elements.forEach((e: any, i) => { if (e.type === 'text' || e.type === 'field') e.color = ['category', 'ticket_type', 'vip_badge'].includes(e.field) ? t.a : t.fg; if (e.type === 'shape') e.fill = i % 2 ? t.b : t.a }) }
 function setFormat(id: string) { const f = PRINT_FORMATS.find((x) => x.id === id); if (!f) return; snapshot(); layout.value.width = f.width; layout.value.height = f.height; nextTick(fit) }
 const formatId = computed(() => PRINT_FORMATS.find((f) => f.width === layout.value?.width && f.height === layout.value?.height)?.id ?? 'custom')
 
@@ -193,29 +225,29 @@ async function publish() {
 }
 async function previewPdf() {
   if (previewPdfBusy.value) return
+  previewPdfError.value = ''
   previewPdfBusy.value = true
-  const previewWindow = window.open('about:blank', '_blank')
   try {
     clearTimeout(timer)
     if (!(await save())) {
-      previewWindow?.close()
+      previewPdfError.value = 'Enregistrement impossible. Corrige le message affiché puis réessaie.'
       return
     }
     const blob = await $fetch<Blob>(`/api/templates/${props.templateId}/preview-pdf`, { method: 'POST', body: previewContext, responseType: 'blob' })
     if (!blob.size) throw new Error('Le PDF généré est vide. Vérifie les éléments du modèle puis réessaie.')
+    if (blob.type && blob.type !== 'application/pdf') throw new Error('La réponse du serveur n’est pas un PDF. Vérifie les droits du modèle puis réessaie.')
     const url = URL.createObjectURL(blob)
-    if (previewWindow) previewWindow.location.href = url
-    else {
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'apercu-billet.pdf'
-      a.click()
-      toast.ok('Le navigateur a bloqué le nouvel onglet : le PDF a été téléchargé.')
-    }
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'apercu-billet.pdf'
+    a.click()
     setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    toast.ok('Le PDF d’essai a été téléchargé.')
   } catch (e) {
-    previewWindow?.close()
-    toast.err(errMsg(e))
+    const requestError = e as { data?: { statusMessage?: string }; statusMessage?: string }
+    const message = requestError.data?.statusMessage || requestError.statusMessage || errMsg(e)
+    previewPdfError.value = message
+    toast.err(message)
   } finally {
     previewPdfBusy.value = false
   }
@@ -243,7 +275,8 @@ const hpos = (h: string) => ({ left: h.includes('w') ? '0%' : h.includes('e') ? 
         <span class="text-sm" :class="saveState === 'error' ? 'text-red-400' : 'text-muted'" role="status">{{ stateText }}</span>
         <div class="flex overflow-hidden rounded-full border border-line"><button v-for="m in [['edit', 'Éditeur'], ['desktop', 'Aperçu PC'], ['mobile', 'Aperçu mobile']]" :key="m[0]" class="min-h-[40px] px-3 text-sm font-semibold" :class="mode === m[0] ? 'bg-accent text-[color:var(--on-accent,#05050a)]' : 'text-muted hover:text-fg'" @click="mode = m[0] as any">{{ m[1] }}</button></div>
         <button class="btn btn-ghost !min-h-[40px]" @click="testQr">Tester le QR</button>
-        <button class="btn btn-ghost !min-h-[40px]" :disabled="previewPdfBusy" @click="previewPdf">{{ previewPdfBusy ? 'Génération du PDF…' : 'PDF d’essai' }}</button>
+        <button class="btn btn-ghost !min-h-[40px]" :disabled="previewPdfBusy || uploading" @click="previewPdf">{{ previewPdfBusy ? 'Génération du PDF…' : 'Télécharger le PDF d’essai' }}</button>
+        <p v-if="previewPdfError" class="w-full text-right text-xs text-red-300" role="alert">{{ previewPdfError }}</p>
         <button class="btn btn-primary !min-h-[40px]" @click="publish">Publier la version</button>
       </div>
     </div>
@@ -252,7 +285,7 @@ const hpos = (h: string) => ({ left: h.includes('w') ? '0%' : h.includes('e') ? 
       <!-- Éléments -->
       <aside class="order-2 border-line bg-surface/40 p-4 pb-8 lg:order-1 lg:min-h-0 lg:overflow-y-auto lg:border-r" aria-label="Éléments du billet">
         <p class="label">Champs dynamiques</p>
-        <div class="grid grid-cols-2 gap-1.5"><button v-for="f in FIELD_KEYS.filter((k) => k !== 'organizer_logo')" :key="f" draggable="true" class="touch-none min-h-10 rounded-lg border border-line px-2 py-2 text-left text-xs font-medium hover:border-accent active:border-accent" :aria-label="`${FIELD_LABELS[f]} : appuyer pour ajouter ou glisser sur le billet`" @click="insertPaletteField(f)" @pointerdown="startFieldPress($event, f)" @dragstart="dragFieldStart($event, f)">{{ FIELD_LABELS[f] }} <span class="float-right text-muted" aria-hidden="true">⋮⋮</span></button></div>
+        <div class="grid grid-cols-2 gap-1.5"><button v-for="f in FIELD_KEYS.filter((k) => k !== 'organizer_logo' && k !== 'vip_badge')" :key="f" draggable="true" class="touch-none min-h-10 rounded-lg border border-line px-2 py-2 text-left text-xs font-medium hover:border-accent active:border-accent" :aria-label="`${FIELD_LABELS[f]} : appuyer pour ajouter ou glisser sur le billet`" @click="insertPaletteField(f)" @pointerdown="startFieldPress($event, f)" @dragstart="dragFieldStart($event, f)">{{ FIELD_LABELS[f] }} <span class="float-right text-muted" aria-hidden="true">⋮⋮</span></button></div>
         <p class="mt-2 text-xs text-muted">Ordinateur : glisse un champ sur le billet. Téléphone : maintiens le doigt 0,45 s puis dépose-le. Un appui simple l’ajoute aussi.</p>
         <details class="mt-4 rounded-xl border border-line p-3">
           <summary class="cursor-pointer text-sm font-semibold">Données d’aperçu</summary>
@@ -260,13 +293,14 @@ const hpos = (h: string) => ({ left: h.includes('w') ? '0%' : h.includes('e') ? 
           <div class="mt-3 space-y-2">
             <label class="block text-xs text-muted">Événement<input v-model="previewContext.eventTitle" class="input !min-h-[38px]"></label>
             <label class="block text-xs text-muted">Participant<input v-model="previewContext.holderName" class="input !min-h-[38px]"></label>
-            <div class="grid grid-cols-2 gap-2"><label class="block text-xs text-muted">Catégorie<input v-model="previewContext.category" class="input !min-h-[38px]"></label><label class="block text-xs text-muted">Prix<input v-model="previewContext.price" class="input !min-h-[38px]"></label></div>
-            <div class="grid grid-cols-2 gap-2"><label class="block text-xs text-muted">Devise<input v-model="previewContext.currency" class="input !min-h-[38px]"></label><label class="block text-xs text-muted">Billet<input v-model="previewContext.ticketNumber" class="input !min-h-[38px]"></label></div>
+            <div class="grid grid-cols-2 gap-2"><label class="block text-xs text-muted">Catégorie<input v-model="previewContext.category" class="input !min-h-[38px]"></label><label class="block text-xs text-muted">Type de billet<input v-model="previewContext.ticketType" class="input !min-h-[38px]" placeholder="VIP, standard, premium…"></label></div>
+            <div class="grid grid-cols-2 gap-2"><label class="block text-xs text-muted">Prix<input v-model="previewContext.price" class="input !min-h-[38px]"></label><label class="block text-xs text-muted">Devise<input v-model="previewContext.currency" class="input !min-h-[38px]"></label></div>
+            <label class="block text-xs text-muted">Numéro de billet<input v-model="previewContext.ticketNumber" class="input !min-h-[38px]"></label>
             <label class="block text-xs text-muted">Date et heure<input v-model="previewContext.datetime" class="input !min-h-[38px]"></label>
             <label class="block text-xs text-muted">Lieu<input v-model="previewContext.venue" class="input !min-h-[38px]"></label>
             <label class="block text-xs text-muted">Commande<input v-model="previewContext.orderId" class="input !min-h-[38px]"></label>
             <label class="block text-xs text-muted">Conditions d’accès<textarea v-model="previewContext.accessTerms" rows="2" class="input !py-2"></textarea></label>
-            <label class="flex min-h-[38px] items-center gap-2 text-xs text-muted"><input v-model="previewContext.vip" type="checkbox" class="accent-[rgb(var(--c-a))]"> Exemple VIP</label>
+            <label class="flex min-h-[38px] items-center gap-2 text-xs text-muted"><input v-model="previewContext.vip" type="checkbox" class="accent-[rgb(var(--c-a))]"> Donnée réservée aux anciens modèles VIP</label>
           </div>
         </details>
         <p class="label mt-4">Ajouter</p>
@@ -290,7 +324,7 @@ const hpos = (h: string) => ({ left: h.includes('w') ? '0%' : h.includes('e') ? 
         <label class="label mt-4" for="thm">Appliquer un thème</label>
         <select id="thm" class="input" @change="applyTheme(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).selectedIndex = 0"><option value="">Choisir…</option><option v-for="t in THEMES" :key="t.id" :value="t.id">{{ t.name }}</option></select>
         <p class="label mt-4">Calques</p>
-        <Draggable v-model="layerElements" tag="ul" item-key="id" handle=".layer-drag-handle" ghost-class="sortable-ghost" chosen-class="sortable-chosen" :animation="180" class="space-y-1" aria-label="Calques réordonnables" @start="snapshot"><template #item="{ element: e }"><li class="flex items-center gap-1 rounded-lg"><button type="button" class="layer-drag-handle grid min-h-[36px] w-8 shrink-0 cursor-grab touch-none place-items-center rounded-lg text-muted hover:bg-line/50 hover:text-accent active:cursor-grabbing" :aria-label="`Glisser pour réordonner ${label(e)}`" title="Glisser pour réordonner">⠿</button><button class="min-h-[36px] flex-1 truncate rounded-lg px-2 text-left text-xs" :class="sel === e.id ? 'bg-accent/20 text-accent' : 'hover:bg-line/50'" @click="sel = e.id">{{ label(e) }}</button><button class="min-h-[36px] w-9 rounded-lg text-xs hover:bg-line/50" :aria-label="e.hidden ? 'Afficher' : 'Masquer'" @click="snapshot(); e.hidden = !e.hidden">{{ e.hidden ? '◌' : '●' }}</button></li></template></Draggable>
+        <Draggable v-model="layerElements" tag="ul" item-key="id" handle=".layer-drag-handle" ghost-class="sortable-ghost" chosen-class="sortable-chosen" :animation="180" class="space-y-1" aria-label="Calques réordonnables" @start="snapshot"><template #item="{ element: e }"><li class="flex items-center gap-1 rounded-lg"><button type="button" class="layer-drag-handle grid min-h-[36px] w-8 shrink-0 cursor-grab touch-none place-items-center rounded-lg text-muted hover:bg-line/50 hover:text-accent active:cursor-grabbing" :aria-label="`Glisser pour réordonner ${objectType(e)} ${label(e)}`" title="Glisser pour réordonner">⠿</button><button class="flex min-h-[36px] min-w-0 flex-1 items-center gap-2 truncate rounded-lg px-2 text-left text-xs" :class="sel === e.id ? 'bg-accent/20 text-accent' : 'hover:bg-line/50'" @click="sel = e.id"><span class="chip shrink-0 !px-2 !py-0.5 text-[10px]">{{ objectType(e) }}</span><span class="truncate">{{ label(e) }}</span></button><button class="min-h-[36px] w-9 rounded-lg text-xs hover:bg-line/50" :aria-label="e.hidden ? 'Afficher' : 'Masquer'" @click="snapshot(); e.hidden = !e.hidden">{{ e.hidden ? '◌' : '●' }}</button></li></template></Draggable>
       </aside>
 
       <!-- Scène -->
@@ -313,8 +347,8 @@ const hpos = (h: string) => ({ left: h.includes('w') ? '0%' : h.includes('e') ? 
       <aside ref="propertiesPanel" class="order-3 border-line bg-surface/40 p-4 pb-8 lg:min-h-0 lg:overflow-y-auto lg:border-l" aria-label="Propriétés">
         <div v-if="!el"><p class="font-display text-sm font-bold">Propriétés</p><p class="hint">Sélectionnez un élément sur le billet pour modifier sa position, sa taille, sa couleur…</p><p class="hint mt-3">Raccourcis : flèches (±1, Maj ±10), Suppr, Ctrl+Z / Y, Ctrl+D.</p></div>
         <div v-else class="space-y-3">
-          <p class="font-display text-sm font-bold">{{ label(el) }}</p>
-          <label class="block text-xs text-muted">Libellé du calque<input v-model="el.name" class="input !min-h-[38px]" placeholder="Nom dans la liste des calques" @focus="snapshot()"></label>
+          <div><p class="font-display text-sm font-bold">{{ label(el) }}</p><span class="chip mt-1">{{ objectType(el) }}</span></div>
+          <label class="block text-xs text-muted">Nom personnalisé<input v-model="el.name" class="input !min-h-[38px]" placeholder="Ex. QR entrée VIP" @focus="snapshot()"></label>
           <div class="grid grid-cols-4 gap-2">
             <label v-for="k in ['x', 'y', 'w', 'h']" :key="k" class="text-xs text-muted">{{ k.toUpperCase() }}<input v-model.number="el[k]" type="number" class="input !min-h-[38px] px-2" @focus="snapshot()"></label>
           </div>

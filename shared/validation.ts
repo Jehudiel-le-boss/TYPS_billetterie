@@ -49,8 +49,9 @@ export const categorySchema = z.object({
   kind: z.enum(['free', 'standard', 'vip', 'backstage', 'early_bird', 'group', 'custom']).default('standard'),
   price: z.number().int().min(0).max(100_000_000), quota: z.number().int().min(1).max(1_000_000),
   maxPerOrder: z.number().int().min(1).max(50).optional(),
-  saleStart: z.coerce.date().optional(), saleEnd: z.coerce.date().optional(),
-  validFrom: z.coerce.date().optional(), validUntil: z.coerce.date().optional(),
+  templateId: z.string().uuid().nullable().optional(),
+  saleStart: z.coerce.date().nullable().optional(), saleEnd: z.coerce.date().nullable().optional(),
+  validFrom: z.coerce.date().nullable().optional(), validUntil: z.coerce.date().nullable().optional(),
   vip: z.boolean().default(false)
 })
 export const checkoutSchema = z.object({

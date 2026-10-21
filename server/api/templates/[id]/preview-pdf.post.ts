@@ -12,6 +12,7 @@ const previewContextSchema = z.object({
   eventTitle: z.string().max(140),
   holderName: z.string().max(120),
   category: z.string().max(80),
+  ticketType: z.string().max(80).optional(),
   price: z.string().max(30),
   currency: z.string().max(8),
   ticketNumber: z.string().max(40),

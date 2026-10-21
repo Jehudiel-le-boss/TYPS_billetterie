@@ -96,6 +96,7 @@ export const ticketCategories = pgTable('ticket_categories', {
   id: id(), eventId: uuid('event_id').notNull().references(() => events.id, { onDelete: 'cascade' }), name: text('name').notNull(), kind: categoryKind('kind').notNull().default('standard'),
   price: integer('price').notNull(), quota: integer('quota').notNull(), sold: integer('sold').notNull().default(0), reserved: integer('reserved').notNull().default(0),
   maxPerOrder: integer('max_per_order'), saleStart: ts('sale_start'), saleEnd: ts('sale_end'), validFrom: ts('valid_from'), validUntil: ts('valid_until'),
+  templateId: uuid('template_id').references(() => ticketTemplates.id, { onDelete: 'set null' }),
   zones: jsonb('zones').$type<string[]>().notNull().default([]), vip: boolean('vip').notNull().default(false), position: integer('position').notNull().default(0),
   createdAt: createdAt(), deletedAt: ts('deleted_at')
 }, (t) => [index('cat_event_idx').on(t.eventId),

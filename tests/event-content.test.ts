@@ -3,8 +3,8 @@ import { qrContrastOk } from '../composables/useQrPreview'
 import { sanitizeEventDescription } from '../server/utils/rich-content'
 import { htmlToPlainText, isRichTextEmpty, toEditorHtml } from '../shared/rich-text'
 import { getCountdownValues } from '../shared/countdown'
-import { parseMapCoordinates } from '../shared/map-location'
-import { eventCreateSchema, richDescriptionSchema } from '../shared/validation'
+import { openStreetMapEmbedUrl, parseMapCoordinates } from '../shared/map-location'
+import { categorySchema, eventCreateSchema, richDescriptionSchema } from '../shared/validation'
 
 describe('contenu des événements', () => {
   it('nettoie le HTML riche en conservant la mise en forme autorisée', () => {
@@ -89,8 +89,23 @@ describe('contenu des événements', () => {
     expect(parseMapCoordinates('6.3703, 2.3912')).toEqual({ lat: 6.3703, lng: 2.3912 })
     expect(parseMapCoordinates('https://www.google.com/maps/@6.3703,2.3912,15z')).toEqual({ lat: 6.3703, lng: 2.3912 })
     expect(parseMapCoordinates('https://www.google.com/maps/place/X/data=!3m1!4b1!4m2!3m1!1s0x!3m1!1s0x!8m2!3d6.3703!4d2.3912')).toEqual({ lat: 6.3703, lng: 2.3912 })
+    expect(parseMapCoordinates('https://maps.google.com/?q=6.3703%2C+2.3912')).toEqual({ lat: 6.3703, lng: 2.3912 })
+    expect(parseMapCoordinates('https://www.google.com/maps/dir/?api=1&destination=6.3703%2C2.3912')).toEqual({ lat: 6.3703, lng: 2.3912 })
+    expect(parseMapCoordinates('https://www.google.com/maps/@6.3703,2.3912/data=!2d2.3912!3d6.3703')).toEqual({ lat: 6.3703, lng: 2.3912 })
     expect(parseMapCoordinates('91, 2')).toBeNull()
     expect(parseMapCoordinates('lien sans coordonnées')).toBeNull()
+  })
+
+  it('produit une URL de carte OpenStreetMap limitée à des coordonnées valides', () => {
+    const url = new URL(openStreetMapEmbedUrl({ lat: 6.3703, lng: 2.3912 }))
+    expect(url.origin).toBe('https://www.openstreetmap.org')
+    expect(url.pathname).toBe('/export/embed.html')
+    expect(url.searchParams.get('marker')).toBe('6.3703,2.3912')
+    expect(url.searchParams.get('bbox')).toBe('2.3762,6.3553,2.4062,6.3853')
+  })
+
+  it('permet de retirer les dates de vente d’une catégorie', () => {
+    expect(categorySchema.partial().safeParse({ saleStart: null, saleEnd: null }).success).toBe(true)
   })
 
   it('n’accepte que les couleurs QR suffisamment contrastées et plus sombres au premier plan', () => {
