@@ -9,7 +9,14 @@ export function useTheme() {
   const find = (tid?: string | null): Theme => all.value.find((t) => t.id === tid) ?? themeById(tid)
   const current = computed(() => find(id.value))
   const saveCustom = (t: Theme) => { custom.value = [...custom.value.filter((c) => c.id !== t.id), t]; if (import.meta.client) localStorage.setItem('typs_custom_themes', JSON.stringify(custom.value)); id.value = t.id }
-  return { id, current, all, custom, find, set: (tid: string) => { id.value = tid }, saveCustom, vars: (t?: Theme) => cssVars(t ?? current.value) }
+  const removeCustom = (tid: string) => {
+    if (!custom.value.some((t) => t.id === tid)) return false
+    custom.value = custom.value.filter((t) => t.id !== tid)
+    if (import.meta.client) localStorage.setItem('typs_custom_themes', JSON.stringify(custom.value))
+    if (id.value === tid) id.value = DEFAULT_THEME_ID
+    return true
+  }
+  return { id, current, all, custom, find, set: (tid: string) => { id.value = tid }, saveCustom, removeCustom, vars: (t?: Theme) => cssVars(t ?? current.value) }
 }
 export const toStyle = (v: Record<string, string>) => Object.entries(v).map(([k, x]) => `${k}:${x}`).join(';')
 export function useGlobalTheme() {

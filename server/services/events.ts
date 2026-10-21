@@ -5,7 +5,7 @@ import { signedUrl } from './storage'
 
 export const slugify = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50) || 'evenement'
 export async function publicCard(ev: typeof events.$inferSelect, extra: { city?: string | null; venue?: string | null; fromPrice?: number | null; orgName?: string }) {
-  return { id: ev.id, slug: ev.slug, title: ev.title, category: ev.category, startsAt: ev.startsAt, currency: ev.currency, themeId: ev.themeId, isDemo: ev.isDemo, posterUrl: ev.posterKey ? await signedUrl(ev.posterKey, 3600) : null, ...extra }
+  return { id: ev.id, slug: ev.slug, title: ev.title, category: ev.category, startsAt: ev.startsAt, currency: ev.currency, themeId: ev.themeId, customTheme: ev.customTheme, isDemo: ev.isDemo, posterUrl: ev.posterKey ? await signedUrl(ev.posterKey, 3600) : null, ...extra }
 }
 export async function listPublicEvents(db: Db, opts: { q?: string; category?: string; limit: number; offset: number }) {
   const where = [eq(events.status, 'published'), eq(events.visibility, 'public'), isNull(events.deletedAt), eq(events.moderation, 'ok'), gte(sql`coalesce(${events.endsAt}, ${events.startsAt})`, new Date())]

@@ -414,24 +414,24 @@ const hpos = (h: string) => ({ left: h.includes('w') ? '0%' : h.includes('e') ? 
       <NuxtLink to="/app/studio" class="btn btn-ghost !min-h-[40px] px-3" aria-label="Retour au Studio">←</NuxtLink>
       <input v-model="tpl!.name" class="input !min-h-[40px] max-w-[220px] font-semibold" aria-label="Nom du modèle" @change="saveState = 'dirty'; save()">
       <div class="mx-1 hidden h-6 w-px bg-line sm:block" />
-      <button class="btn btn-ghost !min-h-[40px] px-3" :disabled="!past.length" title="Annuler la dernière modification (Ctrl+Z)" @click="undo">← Retour</button>
-      <button class="btn btn-ghost !min-h-[40px] px-3" :disabled="!future.length" title="Rétablir la modification annulée (Ctrl+Y)" @click="redo">Avancer →</button>
+      <button class="btn btn-ghost !min-h-[40px] px-3" :disabled="!past.length" aria-label="Annuler la dernière modification" title="Annuler la dernière modification (Ctrl+Z)" @click="undo">Annuler</button>
+      <button class="btn btn-ghost !min-h-[40px] px-3" :disabled="!future.length" aria-label="Rétablir la modification annulée" title="Rétablir la modification annulée (Ctrl+Y)" @click="redo">Rétablir</button>
       <div class="flex items-center gap-1"><button class="btn btn-ghost !min-h-[40px] px-3" aria-label="Zoom arrière" @click="zoom = Math.max(0.2, zoom - 0.1)">−</button><span class="w-12 text-center text-sm tabular-nums">{{ Math.round(zoom * 100) }}%</span><button class="btn btn-ghost !min-h-[40px] px-3" aria-label="Zoom avant" @click="zoom = Math.min(2, zoom + 0.1)">+</button><button class="btn btn-ghost !min-h-[40px] px-3" @click="fit">Ajuster</button></div>
-      <label class="flex min-h-[40px] items-center gap-2 text-sm"><input v-model="grid" type="checkbox" class="h-4 w-4 accent-[rgb(var(--c-a))]"> Grille / magnétisme</label>
-      <div class="ml-auto flex flex-wrap items-center gap-2">
-        <span class="text-sm" :class="saveState === 'error' ? 'text-red-400' : 'text-muted'" role="status">{{ stateText }}</span>
-        <div class="flex overflow-hidden rounded-full border border-line"><button v-for="m in [['edit', 'Éditeur'], ['desktop', 'Aperçu PC'], ['mobile', 'Aperçu mobile']]" :key="m[0]" class="min-h-[40px] px-3 text-sm font-semibold" :class="mode === m[0] ? 'bg-accent text-[color:var(--on-accent,#05050a)]' : 'text-muted hover:text-fg'" @click="mode = m[0] as any">{{ m[1] }}</button></div>
-        <button class="btn btn-ghost !min-h-[40px]" @click="testQr">Tester le QR</button>
-        <button class="btn btn-ghost !min-h-[40px]" :disabled="previewPdfBusy || uploading" @click="previewPdf">{{ previewPdfBusy ? 'Génération du PDF…' : 'Télécharger le PDF d’essai' }}</button>
+      <label class="flex min-h-[40px] items-center gap-2 text-sm"><input v-model="grid" type="checkbox" class="h-4 w-4 accent-[rgb(var(--c-a))]"> Grille</label>
+      <div class="flex w-full flex-wrap items-center gap-2 xl:ml-auto xl:w-auto">
+        <span class="mr-auto text-xs sm:text-sm" :class="saveState === 'error' ? 'text-red-400' : 'text-muted'" role="status">{{ stateText }}</span>
+        <div class="flex overflow-hidden rounded-full border border-line" role="group" aria-label="Mode d’aperçu"><button v-for="m in [['edit', 'Éditer', 'Éditeur'], ['desktop', 'PC', 'Aperçu PC'], ['mobile', 'Mobile', 'Aperçu mobile']]" :key="m[0]" class="min-h-[40px] px-2 text-xs font-semibold sm:px-3 sm:text-sm" :class="mode === m[0] ? 'bg-accent text-[color:var(--on-accent,#05050a)]' : 'text-muted hover:text-fg'" :aria-label="m[2]" :aria-pressed="mode === m[0]" @click="mode = m[0] as any"><span class="sm:hidden">{{ m[1] }}</span><span class="hidden sm:inline">{{ m[2] }}</span></button></div>
+        <button class="btn btn-ghost !min-h-[40px] !px-3" aria-label="Tester le QR code" @click="testQr">Tester QR</button>
+        <button class="btn btn-ghost !min-h-[40px] !px-3" :disabled="previewPdfBusy || uploading" aria-label="Télécharger le PDF d’essai" @click="previewPdf">{{ previewPdfBusy ? 'PDF…' : 'PDF test' }}</button>
         <p v-if="previewPdfError" class="w-full text-right text-xs text-red-300" role="alert">{{ previewPdfError }}</p>
-        <button class="btn btn-primary !min-h-[40px]" @click="publish">Publier la version</button>
+        <button class="btn btn-primary !min-h-[40px] !px-3" aria-label="Publier la version du billet" @click="publish">Publier</button>
       </div>
     </div>
 
     <div class="flex flex-wrap items-center gap-2 border-b border-line bg-surface/40 px-3 py-2">
       <span class="mr-1 text-xs font-semibold uppercase tracking-wide text-muted">Panneaux</span>
-      <button type="button" class="btn btn-ghost !min-h-[38px] !rounded-xl !px-3 text-xs" :class="leftPanelVisible ? 'border-accent bg-accent/10 text-accent' : ''" :aria-pressed="leftPanelVisible" @click="togglePanel('left')"><span aria-hidden="true">☷</span>{{ leftPanelVisible ? 'Champs ouverts' : 'Champs' }}</button>
-      <button type="button" class="btn btn-ghost !min-h-[38px] !rounded-xl !px-3 text-xs" :class="rightPanelVisible ? 'border-accent bg-accent/10 text-accent' : ''" :aria-pressed="rightPanelVisible" @click="togglePanel('right')"><span aria-hidden="true">⚙</span>{{ rightPanelVisible ? 'Propriétés ouvertes' : 'Propriétés' }}</button>
+      <button type="button" class="btn btn-ghost !min-h-[38px] !rounded-xl !px-3 text-xs" :class="leftPanelVisible ? 'border-accent bg-accent/10 text-accent' : ''" :aria-pressed="leftPanelVisible" :aria-label="leftPanelVisible ? 'Masquer les champs du billet' : 'Afficher les champs du billet'" @click="togglePanel('left')"><span aria-hidden="true">☷</span>Champs</button>
+      <button type="button" class="btn btn-ghost !min-h-[38px] !rounded-xl !px-3 text-xs" :class="rightPanelVisible ? 'border-accent bg-accent/10 text-accent' : ''" :aria-pressed="rightPanelVisible" :aria-label="rightPanelVisible ? 'Masquer les réglages' : 'Afficher les réglages'" @click="togglePanel('right')"><span aria-hidden="true">⚙</span>Réglages</button>
     </div>
     <div ref="editorWorkspace" class="grid flex-none grid-cols-1 xl:min-h-0 xl:flex-1 xl:grid-cols-[var(--ticket-left-width)_var(--ticket-left-gutter)_minmax(0,1fr)_var(--ticket-right-gutter)_var(--ticket-right-width)]" :style="{ '--ticket-left-width': leftPanelVisible ? `${leftPanelWidth}px` : '0px', '--ticket-left-gutter': leftPanelVisible ? '8px' : '0px', '--ticket-right-width': rightPanelVisible ? `${rightPanelWidth}px` : '0px', '--ticket-right-gutter': rightPanelVisible ? '8px' : '0px' }">
       <!-- Éléments -->

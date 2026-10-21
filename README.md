@@ -34,7 +34,7 @@ Comptes de démo (seed) : `demo@typs.invalid` / `DemoTyps2026!` (organisateur) e
 
 ## Architecture
 ```
-shared/        thèmes (16), montants entiers, permissions, gabarit de billet, validation Zod — partagés client/serveur
+shared/        thèmes (16 + personnalisés par événement), montants entiers, permissions, gabarit de billet, validation Zod — partagés client/serveur
 server/db/     schema.ts (Drizzle) + migrations/
 server/utils/  env, crypto (scrypt, HMAC), QR signés, sessions, contrôle d'accès, rate-limit, audit
 server/services/  checkout (quota atomique), scan (anti-doublon), fedapay, payments, pdf, ticket-render, storage, mail, csv, guests, waitlist

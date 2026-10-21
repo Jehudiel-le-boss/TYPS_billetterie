@@ -2,6 +2,7 @@
 // Voir DATABASE.md pour les écarts documentés par rapport à la liste du cahier des charges.
 import { sql } from 'drizzle-orm'
 import { pgTable, pgEnum, uuid, text, integer, boolean, timestamp, jsonb, doublePrecision, index, uniqueIndex, check } from 'drizzle-orm/pg-core'
+import type { Theme } from '~~/shared/themes'
 
 const id = () => uuid('id').primaryKey().defaultRandom()
 const ts = (n: string) => timestamp(n, { withTimezone: true, mode: 'date' })
@@ -82,7 +83,8 @@ export const events = pgTable('events', {
   faq: jsonb('faq').$type<{ question: string; answer: string }[]>().notNull().default([]),
   countdownEnabled: boolean('countdown_enabled').notNull().default(true),
   countdownUnits: jsonb('countdown_units').$type<('days' | 'hours' | 'minutes' | 'seconds')[]>().notNull().default(['days', 'hours', 'minutes', 'seconds']),
-  themeId: text('theme_id').notNull().default('neon-cyber'), accessTerms: text('access_terms').notNull().default(''),
+  themeId: text('theme_id').notNull().default('neon-cyber'), customTheme: jsonb('custom_theme').$type<Theme | null>(),
+  accessTerms: text('access_terms').notNull().default(''),
   refundPolicy: jsonb('refund_policy').$type<{ allowed: boolean; untilHoursBefore: number }>().notNull().default({ allowed: false, untilHoursBefore: 48 }),
   isDemo: boolean('is_demo').notNull().default(false), moderation: text('moderation').notNull().default('ok'),
   createdAt: createdAt(), updatedAt: ts('updated_at').notNull().defaultNow(), deletedAt: ts('deleted_at')

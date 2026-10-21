@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { themeById } from '~~/shared/themes'
+import { eventTheme } from '~~/shared/themes'
 import { ticketTypeLabel } from '~~/shared/template'
 const route = useRoute(); const slug = String(route.params.slug); const k = route.query.k ? String(route.query.k) : undefined
 useHead({ meta: [{ name: 'robots', content: 'noindex' }] }); useSeoMeta({ title: 'Acheter mes billets' })
 const { data: ev, error } = await useAsyncData(`buy-${slug}`, () => api<any>(`/api/events/${slug}`, { query: { k } }))
 if (error.value) throw createError({ statusCode: 404, statusMessage: 'Événement introuvable', fatal: true })
 const { data: features } = await useAsyncData('platform-features', () => api<{ onlineSales: boolean }>('/api/platform/features'))
-const vars = computed(() => toStyle(cssVars(themeById(ev.value?.themeId))))
+const vars = computed(() => toStyle(cssVars(eventTheme(ev.value?.themeId, ev.value?.customTheme))))
 const me = useMe(); const toast = useToast()
 const qty = reactive<Record<string, number>>({}); const buyer = reactive({ name: me.value.user?.fullName ?? '', email: me.value.user?.email ?? '', phone: '' }); const promo = ref(''); const accessCode = ref(''); const terms = ref(false); const busy = ref(false)
 const items = computed(() => Object.entries(qty).filter(([, n]) => n > 0).map(([categoryId, quantity]) => ({ categoryId, quantity })))

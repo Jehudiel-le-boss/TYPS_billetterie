@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { themeById } from '~~/shared/themes'
-const props = defineProps<{ e: { slug: string; title: string; startsAt: string; city?: string | null; venue?: string | null; fromPrice?: number | null; currency: string; posterUrl?: string | null; category: string; themeId: string; isDemo?: boolean } }>()
-const vars = computed(() => toStyle(cssVars(themeById(props.e.themeId))))
+import { eventTheme, type Theme } from '~~/shared/themes'
+const props = defineProps<{ e: { slug: string; title: string; startsAt: string; city?: string | null; venue?: string | null; fromPrice?: number | null; currency: string; posterUrl?: string | null; category: string; themeId: string; customTheme?: Theme | null; isDemo?: boolean } }>()
+const vars = computed(() => toStyle(cssVars(eventTheme(props.e.themeId, props.e.customTheme))))
 </script>
 <template>
   <NuxtLink :to="`/events/${e.slug}`" class="card group block overflow-hidden transition duration-300 hover:-translate-y-1 hover:shadow-glow" :style="vars">

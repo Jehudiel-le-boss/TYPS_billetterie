@@ -12,5 +12,6 @@ export default api(async (e) => {
   const [loc] = await db.select().from(eventLocations).where(eq(eventLocations.eventId, event.id)).limit(1)
   const categories = await db.select().from(ticketCategories).where(and(eq(ticketCategories.eventId, event.id), isNull(ticketCategories.deletedAt))).orderBy(asc(ticketCategories.position), asc(ticketCategories.price))
   const { accessCodeHash, ...safe } = event
-  return { ...safe, description: sanitizeEventDescription(safe.description), hasAccessCode: !!accessCodeHash, posterUrl: safe.posterKey ? await signedUrl(safe.posterKey, 3600) : null, location: loc ?? null, categories, access, shareUrl: `${env.siteUrl()}/events/${event.slug}${event.visibility === 'public' ? '' : `?k=${event.shareToken}`}` }
+  const shareTokenRequired = event.visibility !== 'public' || event.status !== 'published' || event.moderation !== 'ok'
+  return { ...safe, description: sanitizeEventDescription(safe.description), hasAccessCode: !!accessCodeHash, posterUrl: safe.posterKey ? await signedUrl(safe.posterKey, 3600) : null, location: loc ?? null, categories, access, shareUrl: `${env.siteUrl()}/events/${event.slug}${shareTokenRequired ? `?k=${event.shareToken}` : ''}` }
 })

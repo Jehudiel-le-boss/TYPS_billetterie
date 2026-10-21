@@ -4,6 +4,7 @@ import { sanitizeEventDescription } from '../server/utils/rich-content'
 import { htmlToPlainText, isRichTextEmpty, toEditorHtml } from '../shared/rich-text'
 import { getCountdownValues } from '../shared/countdown'
 import { openStreetMapEmbedUrl, parseMapCoordinates } from '../shared/map-location'
+import { eventTheme, themeById } from '../shared/themes'
 import { categorySchema, eventCreateSchema, richDescriptionSchema } from '../shared/validation'
 
 describe('contenu des événements', () => {
@@ -102,6 +103,13 @@ describe('contenu des événements', () => {
     expect(url.pathname).toBe('/export/embed.html')
     expect(url.searchParams.get('marker')).toBe('6.3703,2.3912')
     expect(url.searchParams.get('bbox')).toBe('2.3762,6.3553,2.4062,6.3853')
+  })
+
+  it('utilise le thème personnalisé persisté uniquement pour son identifiant', () => {
+    const custom = { ...themeById(), id: 'custom-preview', name: 'Aperçu personnalisé' }
+    expect(eventTheme('custom-preview', custom)).toEqual(custom)
+    expect(eventTheme('custom-other', custom)).toEqual(themeById('custom-other'))
+    expect(eventTheme('neon-cyber', custom)).toEqual(themeById('neon-cyber'))
   })
 
   it('permet de retirer les dates de vente d’une catégorie', () => {

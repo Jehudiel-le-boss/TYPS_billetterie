@@ -27,6 +27,8 @@ export const THEMES: Theme[] = [
 ]
 export const DEFAULT_THEME_ID = 'neon-cyber'
 export const themeById = (id?: string | null): Theme => THEMES.find((t) => t.id === id) ?? THEMES.find((t) => t.id === DEFAULT_THEME_ID)!
+export const eventTheme = (id?: string | null, custom?: Theme | null): Theme =>
+  custom && custom.id === id && id?.startsWith('custom-') ? custom : themeById(id)
 
 const triplet = (hex: string) => {
   const h = hex.replace('#', '')
