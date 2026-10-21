@@ -180,6 +180,7 @@ describe('ventes physiques', () => {
     const f = await fixture(db, { quota: 3 })
     const r = await createPhysicalSale(db, { eventId: f.ev.id, items: [{ categoryId: f.cat.id, quantity: 2 }], paymentMethod: 'cash', amountReceived: 10000, holderName: 'Client guichet', sellerId: f.user.id }, ZERO_FEES)
     expect(r.order.channel).toBe('physical'); expect(r.tickets.every((t) => t.source === 'physical')).toBe(true)
+    expect(r.accessToken).toBeTruthy(); expect(r.tickets).toHaveLength(2); expect((await ticketsOf(r.order.id)).map((t) => t.holderName)).toEqual(['Client guichet', 'Client guichet'])
     const o = await createOnlineOrder(db, { eventId: f.ev.id, items: [{ categoryId: f.cat.id, quantity: 1 }], buyer: buyer() }, ZERO_FEES)
     await expect(createPhysicalSale(db, { eventId: f.ev.id, items: [{ categoryId: f.cat.id, quantity: 1 }], paymentMethod: 'cash', amountReceived: 5000, holderName: 'X', sellerId: f.user.id }, ZERO_FEES)).rejects.toMatchObject({ code: 'sold_out' })
     expect(o.orderId).toBeTruthy()

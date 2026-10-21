@@ -7,6 +7,8 @@ import { createPhysicalSale } from '~~/server/services/checkout'
 import { audit } from '~~/server/utils/audit'
 import { requirePlatformFeature } from '~~/server/utils/feature-gates'
 import { notifyOrganizationManagers } from '~~/server/services/notifications'
+import { sendEmail, mailLayout } from '~~/server/services/mail'
+import { env } from '~~/server/utils/env'
 export default api(async (e) => {
   await requirePlatformFeature(e, 'physicalSales')
   const { user, event } = await requireEvent(e, uuidParam(e, 'id'), 'sales:create_physical')
@@ -14,7 +16,19 @@ export default api(async (e) => {
   const b = await parseBody(e, physicalSaleSchema)
   const db = useDb()
   const r = await createPhysicalSale(db, { ...b, eventId: event.id, sellerId: user.id }, await getFeeConfig(db))
+  const ticketUrl = `${env.siteUrl()}/orders/${r.order.id}?k=${encodeURIComponent(r.accessToken)}`
+  let emailSent: boolean | null = null
+  let emailError = false
+  if (b.buyerEmail) {
+    try {
+      emailSent = await sendEmail(db, b.buyerEmail, `Vos billets pour ${event.title}`, mailLayout('Vos billets sont prêts', 'Votre commande au guichet est confirmée. Ouvrez ce lien sécurisé pour consulter et télécharger vos billets.', { label: 'Voir mes billets', url: ticketUrl }))
+    } catch (error) {
+      emailSent = false
+      emailError = true
+      console.error('[door-sale.email] Could not send ticket link', { errorName: error instanceof Error ? error.name : 'UnknownError' })
+    }
+  }
   if (!event.isDemo) await notifyOrganizationManagers(db, event.organizationId, { kind: 'sale_physical', title: 'Vente au guichet enregistrée', body: `${r.tickets.length} billet(s) vendu(s) pour ${event.title}.`, href: `/app/events/${event.id}?tab=commandes` })
   await audit(db, { actorId: user.id, organizationId: event.organizationId, action: 'sale.physical', entityType: 'order', entityId: r.order.id, meta: { method: b.paymentMethod, total: r.order.total, tickets: r.tickets.length } })
-  return { orderId: r.order.id, k: r.accessToken, total: r.order.total, change: b.amountReceived - r.order.total, currency: r.order.currency, tickets: r.tickets.map((t) => ({ id: t.id, ref: t.ref })) }
+  return { orderId: r.order.id, k: r.accessToken, ticketUrl, emailSent, emailError, total: r.order.total, change: b.amountReceived - r.order.total, currency: r.order.currency, tickets: r.tickets.map((t) => ({ id: t.id, ref: t.ref })) }
 })

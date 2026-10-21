@@ -21,7 +21,8 @@ export function eventCan(a: EventAccess, perm: Perm): boolean {
   if (a.platformAdmin) return true
   if (can(a.orgRole, perm)) return true
   if (a.staff) {
-    if (perm === 'scan' || perm === 'event:read') return a.staff.canScan || a.staff.canSell
+    if (perm === 'event:read') return a.staff.canScan || a.staff.canSell
+    if (perm === 'scan') return a.staff.canScan
     if (perm === 'sales:create_physical') return a.staff.canSell
   }
   return false

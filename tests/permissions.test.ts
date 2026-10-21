@@ -9,6 +9,8 @@ describe('permissions', () => {
   it('affectation d’événement : droits limités', () => {
     const a = { platformAdmin: false, orgRole: null, staff: { canScan: true, canSell: false } }
     expect(eventCan(a, 'scan')).toBe(true); expect(eventCan(a, 'sales:create_physical')).toBe(false); expect(eventCan(a, 'stats:read')).toBe(false)
+    const seller = { ...a, staff: { canScan: false, canSell: true } }
+    expect(eventCan(seller, 'event:read')).toBe(true); expect(eventCan(seller, 'sales:create_physical')).toBe(true); expect(eventCan(seller, 'scan')).toBe(false)
     expect(eventCan({ ...a, staff: null }, 'scan')).toBe(false)
   })
 })
