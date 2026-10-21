@@ -41,7 +41,7 @@ function toggleGuideVisibility() {
       <section class="card flex flex-col items-center gap-4 p-6 text-center sm:flex-row sm:text-left">
         <img v-if="profile.avatarUrl" :src="profile.avatarUrl" alt="Photo de profil" class="h-24 w-24 rounded-full border border-line object-cover">
         <div v-else class="flex h-24 w-24 items-center justify-center rounded-full border border-line bg-surface text-muted"><UserRound :size="36" /></div>
-        <div class="flex-1"><h2 class="font-bold">Photo de profil</h2><p class="mt-1 text-sm text-muted">PNG ou JPEG, 25 Mo maximum avant compression (4 Mo maximum après). Elle est stockée de façon privée.</p></div>
+        <div class="flex-1"><h2 class="font-bold">Photo de profil</h2><p class="mt-1 text-sm text-muted">PNG ou JPEG, 5 Mo maximum avant compression (4 Mo maximum après). Elle est stockée de façon privée.</p></div>
         <input ref="fileInput" type="file" accept="image/png,image/jpeg" class="sr-only" @change="uploadAvatar">
         <div class="flex flex-wrap gap-2"><button class="btn btn-ghost" :disabled="busy" @click="fileInput?.click()"><Camera :size="16" />{{ profile.avatarUrl ? 'Changer la photo' : 'Ajouter une photo' }}</button><button v-if="profile.avatarUrl" class="btn btn-ghost text-red-300" :disabled="busy" @click="removeAvatar"><Trash2 :size="16" />Supprimer la photo</button></div>
       </section>

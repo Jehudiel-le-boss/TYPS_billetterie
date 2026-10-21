@@ -465,13 +465,13 @@ const hpos = (h: string) => ({ left: h.includes('w') ? '0%' : h.includes('e') ? 
           <button class="btn btn-ghost !min-h-[40px] !rounded-lg text-xs" @click="addShape('rect')">Rectangle</button><button class="btn btn-ghost !min-h-[40px] !rounded-lg text-xs" @click="addShape('ellipse')">Ellipse</button>
           <button class="btn btn-ghost !min-h-[40px] col-span-2 !rounded-lg text-xs" :disabled="uploading" @click="logoIn?.click()">Logo / image (PNG, JPG)</button>
         </div>
-        <p class="mt-1 text-xs text-muted">Logo et images : PNG/JPG, 25 Mo avant compression (4 Mo maximum à l’envoi).</p>
+        <p class="mt-1 text-xs text-muted">Logo et images : PNG/JPG, 5 Mo maximum avant compression (4 Mo maximum à l’envoi).</p>
         <input ref="logoIn" type="file" accept="image/png,image/jpeg" class="hidden" @change="onLogo">
         <p class="label mt-4">Fond du billet</p>
         <button class="btn btn-ghost !min-h-[40px] w-full !rounded-lg text-xs" :disabled="uploading" @click="fileIn?.click()">{{ uploading ? 'Envoi…' : 'Importer un fond PNG / JPG / PDF' }}</button>
         <input ref="fileIn" type="file" accept="image/png,image/jpeg,application/pdf" class="hidden" @change="onBackground">
         <p v-if="layout.background.assetId" class="mt-2 text-xs text-emerald-300" role="status">Fond importé : les champs et le QR restent modifiables par-dessus.</p>
-        <p class="mt-1 text-xs text-muted">PNG/JPG jusqu’à 25 Mo avant compression (4 Mo après). PDF jusqu’à 25 Mo et 100 pages; choisis la page à importer.</p>
+        <p class="mt-1 text-xs text-muted">PNG/JPG jusqu’à 5 Mo avant compression (4 Mo après). PDF jusqu’à 25 Mo et 100 pages; choisis la page à importer.</p>
         <label class="mt-2 flex items-center gap-2 text-xs text-muted"><input v-model="fitFormat" type="checkbox" class="accent-[rgb(var(--c-a))]"> Adapter le format du billet au modèle</label>
         <label class="mt-2 block text-xs text-muted">Ajustement de l’image au billet
           <select v-model="layout.background.fit" class="input mt-1" @focus="snapshot()">

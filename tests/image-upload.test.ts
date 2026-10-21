@@ -30,11 +30,11 @@ describe('préparation des images envoyées par formulaire', () => {
     expect(close).toHaveBeenCalledOnce()
   })
 
-  it('refuse les formats inconnus et les sources excessivement volumineuses avant décodage', async () => {
+  it('refuse les formats inconnus et les images de plus de 5 Mo avant décodage', async () => {
     const decode = vi.fn()
     vi.stubGlobal('createImageBitmap', decode)
     await expect(prepareImageUpload(new Blob(['x'], { type: 'image/gif' }))).rejects.toThrow('PNG ou JPEG')
-    await expect(prepareImageUpload(new Blob([new Uint8Array(26 * 1024 * 1024)], { type: 'image/jpeg' }))).rejects.toThrow('25 Mo maximum')
+    await expect(prepareImageUpload(new Blob([new Uint8Array(5 * 1024 * 1024 + 1)], { type: 'image/jpeg' }))).rejects.toThrow('5 Mo maximum')
     expect(decode).not.toHaveBeenCalled()
   })
 })

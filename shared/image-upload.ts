@@ -1,7 +1,7 @@
 const MAX_REQUEST_IMAGE_BYTES = 3.5 * 1024 * 1024
 const MAX_IMAGE_DIMENSION = 6000
 const MAX_IMAGE_PIXELS = 24_000_000
-const MAX_SOURCE_IMAGE_BYTES = 25 * 1024 * 1024
+const MAX_SOURCE_IMAGE_BYTES = 5 * 1024 * 1024
 
 function canvasBlob(canvas: HTMLCanvasElement, type: string, quality?: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
@@ -11,7 +11,7 @@ function canvasBlob(canvas: HTMLCanvasElement, type: string, quality?: number): 
 
 export async function prepareImageUpload(file: Blob): Promise<Blob> {
   if (!['image/png', 'image/jpeg'].includes(file.type)) throw new Error('Format refusé : sélectionne une image PNG ou JPEG.')
-  if (file.size > MAX_SOURCE_IMAGE_BYTES) throw new Error('Image source trop volumineuse (25 Mo maximum avant compression).')
+  if (file.size > MAX_SOURCE_IMAGE_BYTES) throw new Error('Image source trop volumineuse (5 Mo maximum avant compression).')
   let bitmap: ImageBitmap
   try {
     bitmap = await createImageBitmap(file)
