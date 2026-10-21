@@ -4,7 +4,17 @@ export const cssVars = (t: Theme) => ({ ...themeVars(t), '--on-accent': onAccent
 export function useTheme() {
   const id = useCookie<string>('typs_theme', { default: () => DEFAULT_THEME_ID, sameSite: 'lax', maxAge: 60 * 60 * 24 * 365 })
   const custom = useState<Theme[]>('custom-themes', () => [])
-  if (import.meta.client && !custom.value.length) { try { custom.value = JSON.parse(localStorage.getItem('typs_custom_themes') || '[]') } catch { /* ignore */ } }
+  if (import.meta.client) onMounted(() => {
+    if (custom.value.length) return
+    try {
+      const stored = localStorage.getItem('typs_custom_themes')
+      if (!stored) return
+      const themes = JSON.parse(stored)
+      if (Array.isArray(themes)) custom.value = themes
+    } catch (error) {
+      console.error('Impossible de charger les thèmes personnalisés enregistrés.', error)
+    }
+  })
   const all = computed(() => [...THEMES, ...custom.value])
   const find = (tid?: string | null): Theme => all.value.find((t) => t.id === tid) ?? themeById(tid)
   const current = computed(() => find(id.value))

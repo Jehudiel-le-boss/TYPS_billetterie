@@ -11,13 +11,22 @@ const nav = computed(() => isAdmin.value
       { to: '/app', label: 'Tableau de bord', icon: LayoutDashboard },
       { to: '/app/orders', label: 'Mes achats', icon: Ticket, guide: 'nav-buyer-orders' },
       ...(orgRole.value ? [{ to: '/app/events', label: 'Mes événements', icon: CalendarDays }] : []),
+      ...(orgRole.value ? [{ to: '/app/events?stage=draft', label: 'Brouillons', icon: CalendarDays }, { to: '/app/events?stage=published', label: 'Événements publiés', icon: CalendarDays }, { to: '/app/events?stage=closed', label: 'Terminés', icon: CalendarDays }] : []),
       ...(['owner', 'manager'].includes(orgRole.value ?? '') ? [{ to: '/app/studio', label: 'Studio de billets', icon: Palette }, { to: '/app/team', label: 'Équipe', icon: Users, guide: 'nav-team' }, { to: '/app/payouts', label: 'Paiements', icon: Wallet }] : []),
       { to: '/app/notifications', label: 'Notifications', icon: Bell },
       { to: '/app/profile', label: 'Mon profil', icon: UserRound },
       { to: '/app/settings', label: 'Paramètres', icon: Settings },
       ...(['owner', 'manager', 'seller', 'agent'].includes(orgRole.value ?? '') || me.value.isAgent ? [{ to: '/scan', label: 'Scanner', icon: ScanLine }] : [])
     ])
-const active = (to: string) => (to === '/app' || to === '/admin' ? route.path === to : route.path.startsWith(to))
+const active = (to: string) => {
+  const [path, query] = to.split('?')
+  if (query) {
+    const [key, value] = query.split('=')
+    return route.path === path && route.query[key!] === value
+  }
+  if (path === '/app/events') return route.path === path && !route.query.stage || route.path.startsWith('/app/events/') && !route.path.startsWith('/app/events/new')
+  return path === '/app' || path === '/admin' ? route.path === path : route.path.startsWith(path!)
+}
 </script>
 <template>
   <div class="min-h-dvh xl:grid xl:grid-cols-[260px_1fr]">
